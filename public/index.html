@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Wardrobe</title>
+<meta name="theme-color" content="#1f1b18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Wardrobe</h1>
+  <span id="provider" class="pill"></span>
+</header>
+
+<main>
+  <!-- WARDROBE -->
+  <section id="view-wardrobe" class="view">
+    <div class="row between">
+      <div class="chips" id="cat-filter"></div>
+      <button class="btn primary" id="add-item-btn">+ Add item</button>
+    </div>
+    <div id="items" class="grid"></div>
+    <p class="empty" id="items-empty">No clothes yet. Tap <b>Add item</b> and paste a Vinted, Shein or any shop link, or upload a screenshot.</p>
+  </section>
+
+  <!-- STUDIO -->
+  <section id="view-studio" class="view" hidden>
+    <h2>1. Pick a photo of you</h2>
+    <div id="studio-photos" class="strip"></div>
+    <h2>2. Pick clothes <small>(one item, or a whole outfit)</small></h2>
+    <div class="chips" id="studio-filter"></div>
+    <div id="studio-items" class="grid small"></div>
+    <div class="sticky-bar">
+      <span id="studio-count">0 selected</span>
+      <button class="btn ghost" id="studio-save">Save as outfit</button>
+      <button class="btn primary" id="studio-go">Try it on</button>
+    </div>
+    <h2>Your looks</h2>
+    <div id="tryons" class="grid looks"></div>
+    <p class="empty" id="tryons-empty">Try-on results will appear here.</p>
+  </section>
+
+  <!-- OUTFITS -->
+  <section id="view-outfits" class="view" hidden>
+    <div class="card stylist">
+      <h2>Ask the AI stylist</h2>
+      <div class="row">
+        <input id="stylist-q" placeholder="e.g. smart casual for a dinner, or what goes with my black jeans?">
+        <button class="btn primary" id="stylist-go">Ask</button>
+      </div>
+      <div id="suggestions"></div>
+    </div>
+    <div id="outfits" class="list"></div>
+    <p class="empty" id="outfits-empty">No outfits yet. Build one in the <b>Try on</b> tab, or ask the stylist.</p>
+  </section>
+
+  <!-- ME -->
+  <section id="view-me" class="view" hidden>
+    <div class="row between">
+      <h2>Photos of you</h2>
+      <label class="btn primary">+ Add photo<input type="file" accept="image/*" id="photo-input" multiple hidden></label>
+    </div>
+    <p class="hint">Best results: full body, standing straight, facing the camera, good light, plain background, fitted clothes. The starred photo is used by default.</p>
+    <div id="photos" class="grid"></div>
+    <p class="empty" id="photos-empty">Add a full-length photo of yourself to start trying things on.</p>
+    <div class="card">
+      <h2>Privacy</h2>
+      <p class="hint">Your photos and clothes are stored only on this computer, in the app's <code>data</code> folder. A photo is sent to the AI service you chose only when you press <b>Try it on</b>.</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-view="wardrobe" class="active"><span>👕</span>Wardrobe</button>
+  <button data-view="studio"><span>✨</span>Try on</button>
+  <button data-view="outfits"><span>🧥</span>Outfits</button>
+  <button data-view="me"><span>🙂</span>Me</button>
+</nav>
+
+<!-- Add item dialog -->
+<dialog id="add-dialog">
+  <form method="dialog" class="sheet" id="add-form">
+    <div class="row between"><h2>Add clothing</h2><button class="x" value="cancel" formnovalidate>✕</button></div>
+    <div class="seg">
+      <button type="button" data-mode="link" class="on">Paste link</button>
+      <button type="button" data-mode="upload">Upload photo</button>
+    </div>
+    <div id="mode-link">
+      <div class="row">
+        <input id="link-input" type="url" placeholder="https://www.vinted.co.uk/items/...">
+        <button type="button" class="btn" id="link-fetch">Fetch</button>
+      </div>
+      <p class="hint">Works with most shops. If one blocks it, use a screenshot instead.</p>
+    </div>
+    <div id="mode-upload" hidden>
+      <label class="drop">Choose image or screenshot<input type="file" accept="image/*" id="item-file" hidden></label>
+    </div>
+    <div id="item-preview" hidden>
+      <img id="preview-img" alt="">
+      <label>Name <input id="f-name"></label>
+      <div class="row">
+        <label>Type <select id="f-category"></select></label>
+        <label>Status <select id="f-status"><option value="wishlist">Wishlist</option><option value="owned">I own it</option></select></label>
+      </div>
+      <div class="row">
+        <label>Brand <input id="f-brand"></label>
+        <label>Price <input id="f-price"></label>
+      </div>
+      <p class="error" id="add-error"></p>
+      <button type="button" class="btn primary wide" id="item-save">Save to wardrobe</button>
+    </div>
+    <p class="error" id="fetch-error"></p>
+  </form>
+</dialog>
+
+<!-- Image viewer -->
+<dialog id="viewer"><img id="viewer-img" alt=""><form method="dialog"><button class="x">✕</button></form></dialog>
+
+<div id="toast" hidden></div>
+<script src="app.js" type="module"></script>
+</body>
+</html>
