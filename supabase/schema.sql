@@ -67,3 +67,28 @@ drop policy if exists "wardrobe own files" on storage.objects;
 create policy "wardrobe own files" on storage.objects for all to authenticated
   using (bucket_id = 'wardrobe' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'wardrobe' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Premium fields (photo angles, colours, sizes, favourites, tags) and the profile table.
+alter table public.photos add column if not exists angle text not null default 'full';
+alter table public.items add column if not exists colour text not null default '';
+alter table public.items add column if not exists size text not null default '';
+alter table public.items add column if not exists favourite boolean not null default false;
+alter table public.outfits add column if not exists tags text[] not null default '{}';
+alter table public.outfits add column if not exists favourite boolean not null default false;
+alter table public.tryons add column if not exists favourite boolean not null default false;
+
+create table if not exists public.profiles (
+  user_id uuid primary key default auth.uid() references auth.users on delete cascade,
+  display_name text not null default '',
+  city text not null default '',
+  budget text not null default '',
+  sizes jsonb not null default '{}',
+  measurements jsonb not null default '{}',
+  styles text[] not null default '{}',
+  brands text[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+drop policy if exists "own profile" on public.profiles;
+create policy "own profile" on public.profiles for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());

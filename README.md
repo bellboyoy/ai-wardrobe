@@ -1,71 +1,52 @@
-# AI Wardrobe
+# Atelier — AI Wardrobe
 
-A private app for your own clothes and wishlist. Add photos of yourself, save items from Vinted, Shein or any shop by pasting the link, let AI put them on you, and build outfits. Works on your phone and can be added to your home screen.
+A private fashion app for your own clothes and wishlist. Add photos of yourself, import pieces from Vinted, SHEIN, Zara, ASOS or any shop, let AI dress you in them, build outfits and ask an AI stylist what to wear.
 
-## What it does
+## What's inside
 
-- **Me**: upload full-length photos of yourself and star a default.
-- **Wardrobe**: paste a product link (Vinted, Shein, ASOS, H&M, Depop…) and it grabs the photo, name, brand and price. If a shop blocks it, upload a screenshot instead. Mark items as *owned* or *wishlist*.
-- **Try on**: pick a photo of you plus one item or a whole outfit, and the AI dresses you in it.
-- **Outfits**: save combinations with their try-on image, regenerate looks, and ask the **AI stylist** (Gemini) for outfit ideas.
-- **Share to the app** (Android, once installed to the home screen): use *Share* in the Vinted or Shein app and pick Wardrobe.
+- **Home**: greeting, your latest look, recently added pieces, AI outfit ideas, recent outfits and quick wardrobe access.
+- **Try On**: pick one of your photos and up to six pieces, then generate a realistic photo of you wearing them. Compare before and after, favourite it, save it as an outfit or download it.
+- **My Wardrobe**: a catalogue with search, filters (owned, wishlist, favourites), sorting and categories (T-shirts, Shirts, Hoodies, Jumpers, Jackets, Trousers, Jeans, Shorts, Shoes, Accessories, Dresses).
+  - Add a piece by pasting a product link, or by uploading a photo or screenshot. The AI reads the screenshot and fills in the name, category, colour, brand, size and price. Everything stays editable.
+- **Outfit Studio**: slots for top, bottom, jacket, shoes and accessories, shuffle, save with name, tags and notes, then view it on you. The AI stylist takes free-form requests and considers your wardrobe, sizes, styles, budget, occasion and the weather in your city.
+- **Saved Looks**: a gallery of generated looks to favourite, compare side by side, recreate or delete.
+- **Profile**: your avatar photos (front, side, full length), sizes, optional private measurements, styles, brands, budget and account settings.
+- **Share to the app**: once installed to an Android home screen, use *Share* in a shopping app and pick Atelier.
 
-## How it's built
+## Stack
 
-- `public/`: the web app (plain HTML, CSS and JavaScript, no build step).
-- `api/`: small serverless functions on Vercel for things that need secrets or a server: reading shop links, AI try-on, AI stylist.
-- **Supabase** for login, the database and a **private** storage bucket. Every row and file is locked to your account by database rules (`supabase/schema.sql`), and only emails in `ALLOWED_EMAILS` can use the AI functions.
+- Next.js (App Router) with TypeScript and Tailwind CSS, deployed on Vercel.
+- Supabase for login, the database and a **private** storage bucket. Row level security locks every row and file to your account (`supabase/schema.sql`).
+- AI runs only on the server (`app/api/*`), so API keys never reach the browser:
+  - `lib/server/gemini.ts`: Gemini client.
+  - `lib/server/tryon.ts`: try-on providers (Gemini, FASHN, Replicate).
+  - `app/api/stylist`: AI stylist.
+  - `app/api/identify`: screenshot reading.
 
-## Set up (one time, about 15 minutes)
+If no AI key is set, the app says so clearly and never shows a fake result.
 
-### 1. Supabase (free)
-1. Create a project at [supabase.com](https://supabase.com).
-2. **SQL Editor → New query**, paste all of `supabase/schema.sql`, press **Run**.
-3. **Authentication → Users → Add user**: your email and a password, tick *Auto confirm*.
-4. **Authentication → Sign In / Providers**: turn off *Allow new users to sign up*.
-5. **Project Settings → API**: copy the *Project URL* and the *anon public* key.
+## Environment variables (Vercel → Settings → Environment Variables)
 
-### 2. Gemini key
-Get one at [Google AI Studio](https://aistudio.google.com/apikey).
+| Name | Needed | What it does |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Yes, for AI | Try-on, stylist and screenshot reading. Get one at aistudio.google.com/apikey. |
+| `ALLOWED_EMAILS` | Recommended | Comma-separated emails allowed to use the AI routes. |
+| `TRYON_PROVIDER` | Optional | `gemini` (default when a Gemini key exists), `fashn` or `replicate`. |
+| `GEMINI_IMAGE_MODEL` / `GEMINI_TEXT_MODEL` | Optional | Override the Gemini models. |
+| `FASHN_API_KEY` / `REPLICATE_API_TOKEN` | Optional | Only for those try-on providers. |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Override the Supabase project. The public URL and anon key are already built in. |
 
-### 3. Vercel (free)
-1. At [vercel.com/new](https://vercel.com/new), import the `ai-wardrobe` GitHub repo.
-2. Add these **Environment Variables**, then **Deploy**:
+The old `SUPABASE_URL` and `SUPABASE_ANON_KEY` variables are no longer used and can be deleted.
 
-| Name | Value |
-|---|---|
-| `SUPABASE_URL` | Project URL from Supabase |
-| `SUPABASE_ANON_KEY` | anon public key from Supabase |
-| `ALLOWED_EMAILS` | your email (the one you added in Supabase) |
-| `GEMINI_API_KEY` | your Gemini key |
-| `TRYON_PROVIDER` | `gemini` |
+## Database
 
-Open the Vercel link on your phone, log in, and use *Add to Home Screen*.
+Run `supabase/schema.sql` in Supabase → SQL Editor. It is safe to run again. Create your login in Supabase → Authentication → Users.
 
-## AI services
-
-| `TRYON_PROVIDER` | Good at | Key variable |
-|---|---|---|
-| `gemini` (default) | Whole outfits in one go, incl. shoes and accessories, plus the stylist. Can occasionally alter your face or pose a little. | `GEMINI_API_KEY` |
-| `fashn` | Most faithful try-on of tops, bottoms and dresses. Paid per image. | `FASHN_API_KEY` |
-| `replicate` | Open-source IDM-VTON, cheap, slower and less consistent. | `REPLICATE_API_TOKEN` |
-| `demo` | No AI, shows a side-by-side preview. Free. | none |
-
-Change the variable in Vercel and redeploy to switch. Optional: `GEMINI_IMAGE_MODEL` (default `gemini-3.1-flash-image`) and `GEMINI_TEXT_MODEL` (default `gemini-flash-latest`).
-
-## Run on your own computer
+## Develop
 
 ```bash
 npm install
-cp .env.example .env   # fill in the same values as above
-npm run dev            # http://localhost:3000
+npm run dev        # http://localhost:3000
+npm run typecheck
+npm run build
 ```
-
-## Privacy
-
-Photos are stored in a private Supabase bucket and shown through links that expire after an hour. A photo goes to the AI service only when you press **Try it on**, and to Gemini when you ask the stylist.
-
-## Tips for good try-ons
-
-- Full-length photo, standing straight, arms slightly away from your body, plain background, good light.
-- Product photos on a plain background or flat-lay give the cleanest results.
