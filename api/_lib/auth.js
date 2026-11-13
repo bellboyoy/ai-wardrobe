@@ -9,7 +9,9 @@ export class HttpError extends Error {
 }
 
 export function env(name) {
-  const v = process.env[name];
+  // Strip spaces, line breaks and invisible characters picked up when pasting into the hosting settings.
+  const raw = process.env[name] || '';
+  const v = name === 'ALLOWED_EMAILS' ? raw.replace(/[^\x20-\x7E]/g, '') : raw.replace(/[^\x21-\x7E]/g, '');
   if (!v) throw new HttpError(500, `${name} is not set in the hosting settings`);
   return v;
 }
@@ -18,7 +20,7 @@ export function env(name) {
 export async function requireUser(req) {
   const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token) throw new HttpError(401, 'Please log in');
-  const sb = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), {
+  const sb = createClient(env('SUPABASE_URL').replace(/\/+$/, ''), env('SUPABASE_ANON_KEY'), {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
