@@ -1,5 +1,5 @@
 // AI try-on providers. Pick one with TRYON_PROVIDER in .env: gemini | fashn | replicate | demo
-import { fileAsDataUri, saveFile } from './db.js';
+// Images are passed around as { mime, base64 }. Results come back as { mime, buffer }.
 import { downloadImage } from './linkImport.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -17,26 +17,27 @@ export function providerName() {
 // Layer order when dressing in several pieces one at a time
 const ORDER = { 'one-piece': 0, bottom: 1, top: 2, outerwear: 3, shoes: 4, accessory: 5 };
 
+const toResult = ({ mime, base64 }) => ({ mime, buffer: Buffer.from(base64, 'base64') });
+
 /**
- * Dress the person in `photo` with every item in `items`.
- * Returns the saved file name of the result image.
+ * Dress `person` ({ mime, base64 }) in every item in `items` ({ category, name, img }).
  */
-export async function runTryOn(photo, items) {
+export async function runTryOn(person, items) {
   const provider = providerName();
   const sorted = [...items].sort((a, b) => (ORDER[a.category] ?? 9) - (ORDER[b.category] ?? 9));
-  if (provider === 'demo') return demoTryOn(photo, sorted);
-  if (provider === 'gemini') return geminiTryOn(photo, sorted);
+  if (provider === 'demo') return demoTryOn(person, sorted);
+  if (provider === 'gemini') return geminiTryOn(person, sorted);
 
   // FASHN and Replicate do one garment per call, so chain them.
-  let current = fileAsDataUri(photo.file);
+  let current = person;
   for (const item of sorted) {
-    const garment = fileAsDataUri(item.file);
+    const garment = item.img;
     const out = provider === 'fashn'
       ? await fashnOne(current, garment, item)
       : await replicateOne(current, garment, item);
     current = out;
   }
-  return saveFile(Buffer.from(current.base64, 'base64'), current.mime);
+  return toResult(current);
 }
 
 // ---------- Gemini (Nano Banana) ----------
@@ -57,14 +58,13 @@ async function geminiCall(model, parts, wantImage) {
   return json.candidates?.[0]?.content?.parts || [];
 }
 
-async function geminiTryOn(photo, items) {
+async function geminiTryOn(p, items) {
   const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image';
   const parts = [];
-  const p = fileAsDataUri(photo.file);
   parts.push({ text: 'Image 1 is a photo of me.' });
   parts.push({ inline_data: { mime_type: p.mime, data: p.base64 } });
   items.forEach((it, i) => {
-    const g = fileAsDataUri(it.file);
+    const g = it.img;
     parts.push({ text: `Image ${i + 2} is a clothing item (${it.category}${it.name ? `: ${it.name}` : ''}).` });
     parts.push({ inline_data: { mime_type: g.mime, data: g.base64 } });
   });
@@ -83,7 +83,7 @@ async function geminiTryOn(photo, items) {
     throw new Error(`Gemini didn't return an image${text ? `: ${text}` : ''}`);
   }
   const d = img.inlineData || img.inline_data;
-  return saveFile(Buffer.from(d.data, 'base64'), d.mimeType || d.mime_type || 'image/png');
+  return { mime: d.mimeType || d.mime_type || 'image/png', buffer: Buffer.from(d.data, 'base64') };
 }
 
 export async function suggestOutfits(items, request) {
@@ -98,8 +98,8 @@ export async function suggestOutfits(items, request) {
       'Use only ids from the list. Each outfit needs at most one top, one bottom (or one one-piece instead of both), and optionally outerwear, shoes, accessories.',
   }];
   // Let the stylist see the clothes too (first 16 items to keep it quick)
-  for (const it of items.slice(0, 16)) {
-    const g = fileAsDataUri(it.file);
+  for (const it of items.filter((x) => x.img).slice(0, 16)) {
+    const g = it.img;
     parts.push({ text: `Photo of id=${it.id}` }, { inline_data: { mime_type: g.mime, data: g.base64 } });
   }
   const out = await geminiCall(model, parts, false);
@@ -173,10 +173,9 @@ async function fromOutput(out) {
 }
 
 // ---------- Demo (no AI, no cost) ----------
-function demoTryOn(photo, items) {
-  const p = fileAsDataUri(photo.file);
+function demoTryOn(p, items) {
   const thumbs = items.slice(0, 4).map((it, i) => {
-    const g = fileAsDataUri(it.file);
+    const g = it.img;
     return `<image href="${dataUri(g)}" x="${540}" y="${20 + i * 235}" width="220" height="220" preserveAspectRatio="xMidYMid meet"/>`;
   }).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="780" height="980" viewBox="0 0 780 980">
@@ -186,5 +185,5 @@ ${thumbs}
 <rect x="20" y="900" width="500" height="60" fill="rgba(0,0,0,.55)"/>
 <text x="270" y="938" font-family="sans-serif" font-size="22" fill="#fff" text-anchor="middle">Demo preview: add an AI key for real try-ons</text>
 </svg>`;
-  return saveFile(Buffer.from(svg), 'image/svg+xml');
+  return { mime: 'image/svg+xml', buffer: Buffer.from(svg) };
 }

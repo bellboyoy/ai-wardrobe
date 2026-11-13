@@ -1,24 +1,18 @@
+import * as data from './data.js';
+const { cfg, urlOf } = data;
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const img = (file) => `/files/${encodeURIComponent(file)}`;
+const img = (file) => esc(urlOf(file));
 const LABEL = { top: 'Tops', bottom: 'Bottoms', 'one-piece': 'Dresses & one-pieces', outerwear: 'Outerwear', shoes: 'Shoes', accessory: 'Accessories' };
 const SHORT = { top: 'Top', bottom: 'Bottom', 'one-piece': 'One-piece', outerwear: 'Outerwear', shoes: 'Shoes', accessory: 'Accessory' };
 
 const state = { status: {}, photos: [], items: [], tryons: [], outfits: [], filter: 'all', studioFilter: 'all', selected: new Set(), photoId: null };
 
-async function api(path, opts = {}) {
-  const init = { ...opts };
-  if (opts.json) { init.body = JSON.stringify(opts.json); init.headers = { 'Content-Type': 'application/json' }; init.method ||= 'POST'; }
-  const res = await fetch(path, init);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-  return data;
-}
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3500);
 }
-function view(file) { $('#viewer-img').src = img(file); $('#viewer').showModal(); }
+function view(file) { $('#viewer-img').src = urlOf(file); $('#viewer').showModal(); }
 
 // ---------- navigation ----------
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.view)));
@@ -31,8 +25,9 @@ function show(name) {
 
 // ---------- loading ----------
 async function load() {
-  [state.status, state.photos, state.items, state.tryons, state.outfits] = await Promise.all(
-    ['/api/status', '/api/photos', '/api/items', '/api/tryons', '/api/outfits'].map((p) => api(p)));
+  state.status = cfg;
+  [state.photos, state.items, state.tryons, state.outfits] = await Promise.all([data.listPhotos(), data.listItems(), data.listTryons(), data.listOutfits()]);
+  await sign();
   if (!state.photoId || !state.photos.find((p) => p.id === state.photoId)) state.photoId = (state.photos.find((p) => p.isDefault) || state.photos[0])?.id;
   const prov = { gemini: 'Gemini AI', fashn: 'FASHN AI', replicate: 'Replicate AI', demo: 'Demo mode' }[state.status.provider] || state.status.provider;
   $('#provider').textContent = prov;
@@ -41,8 +36,8 @@ async function load() {
 }
 async function refreshTryons() {
   const before = state.tryons.filter((t) => t.status === 'running').length;
-  state.tryons = await api('/api/tryons');
-  state.outfits = await api('/api/outfits');
+  [state.tryons, state.outfits] = await Promise.all([data.listTryons(), data.listOutfits()]);
+  await sign();
   const running = state.tryons.filter((t) => t.status === 'running').length;
   if (running < before) {
     const latest = state.tryons.find((t) => t.status !== 'running');
@@ -52,6 +47,7 @@ async function refreshTryons() {
   if (running) setTimeout(refreshTryons, 2500);
 }
 
+const sign = () => data.signAll([...state.photos, ...state.items, ...state.tryons].map((x) => x.file));
 function render() { renderFilters(); renderItems(); renderStudio(); renderTryons(); renderOutfits(); renderPhotos(); }
 
 function chipRow(el, current, onPick) {
@@ -84,8 +80,8 @@ function renderItems() {
     const id = t.dataset.id;
     t.querySelector('img').addEventListener('click', () => view(state.items.find((i) => i.id === id).file));
     t.querySelector('[data-act=try]').addEventListener('click', () => { state.selected = new Set([id]); show('studio'); renderStudio(); });
-    t.querySelector('[data-act=cat]').addEventListener('change', async (e) => { await api(`/api/items/${id}`, { method: 'PATCH', json: { category: e.target.value } }); load(); });
-    t.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this item?')) { await api(`/api/items/${id}`, { method: 'DELETE' }); state.selected.delete(id); load(); } });
+    t.querySelector('[data-act=cat]').addEventListener('change', async (e) => { await data.updateItem(id, { category: e.target.value }); load(); });
+    t.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this item?')) { await data.deleteItem(state.items.find((i) => i.id === id), state.outfits); state.selected.delete(id); load(); } });
   });
 }
 
@@ -122,7 +118,7 @@ async function fetchLink() {
   if (!url) return;
   $('#fetch-error').textContent = ''; $('#link-fetch').disabled = true; $('#link-fetch').textContent = 'Fetching…';
   try {
-    const info = await api('/api/items/preview', { json: { url } });
+    const info = await data.api('preview', { url });
     pending = { imageUrl: info.imageUrl, url, source: info.source };
     showPreview(info.imageUrl, info);
   } catch (e) { $('#fetch-error').textContent = e.message; }
@@ -137,12 +133,10 @@ $('#item-file').addEventListener('change', (e) => {
 });
 $('#item-save').addEventListener('click', async () => {
   if (!pending) return;
-  const fd = new FormData();
-  if (pending.file) fd.append('image', pending.file);
-  else { fd.append('imageUrl', pending.imageUrl); fd.append('url', pending.url); fd.append('source', pending.source || ''); }
-  for (const k of ['name', 'category', 'brand', 'price', 'status']) fd.append(k, $(`#f-${k}`).value);
+  const fields = pending.file ? { file: pending.file } : { imageUrl: pending.imageUrl, url: pending.url, source: pending.source || '' };
+  for (const k of ['name', 'category', 'brand', 'price', 'status']) fields[k] = $(`#f-${k}`).value;
   const btn = $('#item-save'); btn.disabled = true; btn.textContent = 'Saving…';
-  try { await api('/api/items', { method: 'POST', body: fd }); dlg.close(); toast('Added to your wardrobe'); load(); }
+  try { await data.addItem(fields); dlg.close(); toast('Added to your wardrobe'); load(); }
   catch (e) { $('#add-error').textContent = e.message; }
   finally { btn.disabled = false; btn.textContent = 'Save to wardrobe'; }
 });
@@ -166,17 +160,17 @@ function renderStudio() {
   $('#studio-go').disabled = !n || !state.photoId; $('#studio-save').disabled = !n;
 }
 async function startTryOn(itemIds, outfitId) {
-  try {
-    await api('/api/tryons', { json: { photoId: state.photoId, itemIds, outfitId } });
-    toast('Creating your look… this takes 10 to 60 seconds');
-    await load();
-  } catch (e) { toast(e.message); }
+  const req = data.api('tryon', { photoId: state.photoId, itemIds, outfitId });
+  toast('Creating your look… this takes 10 to 60 seconds');
+  setTimeout(load, 1200);
+  try { await req; } catch (e) { toast(e.message); }
+  load();
 }
 $('#studio-go').addEventListener('click', () => startTryOn([...state.selected]));
 $('#studio-save').addEventListener('click', async () => {
   const name = prompt('Name this outfit', 'New outfit'); if (name === null) return;
   const last = state.tryons.find((t) => t.status === 'done' && sameSet(t.itemIds, [...state.selected]));
-  await api('/api/outfits', { json: { name, itemIds: [...state.selected], tryonId: last?.id } });
+  await data.addOutfit({ name, itemIds: [...state.selected], tryonId: last?.id });
   toast('Outfit saved'); load();
 });
 const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
@@ -197,9 +191,9 @@ function renderTryons() {
     el.querySelector('[data-view]')?.addEventListener('click', () => view(t.file));
     el.querySelector('[data-act=save]')?.addEventListener('click', async () => {
       const name = prompt('Name this outfit', 'New outfit'); if (name === null) return;
-      await api('/api/outfits', { json: { name, itemIds: t.itemIds, tryonId: t.id } }); toast('Outfit saved'); load();
+      await data.addOutfit({ name, itemIds: t.itemIds, tryonId: t.id }); toast('Outfit saved'); load();
     });
-    el.querySelector('[data-act=del]').addEventListener('click', async () => { await api(`/api/tryons/${t.id}`, { method: 'DELETE' }); load(); });
+    el.querySelector('[data-act=del]').addEventListener('click', async () => { await data.deleteTryon(t); load(); });
   });
 }
 
@@ -220,19 +214,19 @@ function renderOutfits() {
     const o = state.outfits.find((x) => x.id === el.dataset.id);
     el.querySelector('[data-view]')?.addEventListener('click', (e) => view(e.target.dataset.view));
     el.querySelector('[data-act=gen]').addEventListener('click', () => startTryOn(o.itemIds, o.id));
-    el.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this outfit?')) { await api(`/api/outfits/${o.id}`, { method: 'DELETE' }); load(); } });
+    el.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this outfit?')) { await data.deleteOutfit(o.id); load(); } });
   });
 }
 $('#stylist-go').addEventListener('click', async () => {
   const btn = $('#stylist-go'); btn.disabled = true; btn.textContent = 'Thinking…';
   try {
-    const list = await api('/api/suggest', { json: { request: $('#stylist-q').value } });
+    const list = await data.api('suggest', { request: $('#stylist-q').value });
     $('#suggestions').innerHTML = list.map((s, n) => `<div class="suggestion"><b>${esc(s.name)}</b><p class="hint">${esc(s.why)}</p>
       <div class="thumbs">${s.itemIds.map((id) => state.items.find((i) => i.id === id)).filter(Boolean).map((i) => `<img src="${img(i.file)}" alt="">`).join('')}</div>
       <button class="btn" data-n="${n}">Save outfit</button></div>`).join('') || '<p class="hint">No ideas this time, try rephrasing.</p>';
     $('#suggestions').querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', async () => {
       const s = list[b.dataset.n];
-      await api('/api/outfits', { json: { name: s.name, itemIds: s.itemIds, notes: s.why } });
+      await data.addOutfit({ name: s.name, itemIds: s.itemIds, notes: s.why });
       b.textContent = 'Saved ✓'; b.disabled = true; load();
     }));
   } catch (e) { toast(e.message); }
@@ -248,19 +242,43 @@ function renderPhotos() {
   $('#photos').querySelectorAll('.tile').forEach((el) => {
     const id = el.dataset.id;
     el.querySelector('img').addEventListener('click', () => view(state.photos.find((p) => p.id === id).file));
-    el.querySelector('[data-act=def]')?.addEventListener('click', async () => { await api(`/api/photos/${id}`, { method: 'PATCH', json: { isDefault: true } }); state.photoId = id; load(); });
-    el.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this photo?')) { await api(`/api/photos/${id}`, { method: 'DELETE' }); load(); } });
+    el.querySelector('[data-act=def]')?.addEventListener('click', async () => { await data.setDefaultPhoto(id); state.photoId = id; load(); });
+    el.querySelector('[data-act=del]').addEventListener('click', async () => { if (confirm('Delete this photo?')) { await data.deletePhoto(state.photos.find((p) => p.id === id)); load(); } });
   });
 }
 $('#photo-input').addEventListener('change', async (e) => {
   for (const f of e.target.files) {
-    const fd = new FormData(); fd.append('image', f);
-    try { await api('/api/photos', { method: 'POST', body: fd }); } catch (err) { toast(err.message); }
+    try { await data.addPhoto(f); } catch (err) { toast(err.message); }
   }
   e.target.value = ''; toast('Photo added'); load();
 });
 
-let startTab = 'wardrobe';
-try { startTab = localStorage.getItem('tab') || 'wardrobe'; } catch {}
-show(startTab);
-load().catch((e) => toast(e.message));
+// ---------- login ----------
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#login-form button'); btn.disabled = true; $('#login-error').textContent = '';
+  try { await data.signIn($('#login-email').value, $('#login-password').value); start(); }
+  catch (err) { $('#login-error').textContent = err.message; }
+  finally { btn.disabled = false; }
+});
+$('#logout').addEventListener('click', async () => { await data.signOut(); location.reload(); });
+
+// Shared from another app (Android "Share" from Vinted/Shein once installed) or opened with ?url=
+const shared = new URLSearchParams(location.search);
+const sharedLink = shared.get('url') || (shared.get('text') || '').match(/https?:\/\/\S+/)?.[0];
+
+async function start() {
+  if (!data.sb) { $('#setup').hidden = false; return; }
+  const user = await data.currentUser();
+  $('#login').hidden = Boolean(user);
+  document.body.classList.toggle('signed-out', !user);
+  if (!user) return;
+  $('#who').textContent = user.email;
+  let startTab = 'wardrobe';
+  try { startTab = localStorage.getItem('tab') || 'wardrobe'; } catch {}
+  if (sharedLink) { history.replaceState(null, '', '/'); startTab = 'wardrobe'; }
+  show(startTab);
+  await load();
+  if (sharedLink) { $('#add-item-btn').click(); $('#link-input').value = sharedLink; fetchLink(); }
+}
+start().catch((e) => toast(e.message));
