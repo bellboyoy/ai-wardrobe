@@ -1,4 +1,4 @@
-import { env } from './env';
+import { apiKey, env } from './env';
 import type { Img } from './auth';
 
 const BASE = env('GEMINI_BASE_URL') || 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -6,7 +6,7 @@ export type Part = { text: string } | { inline_data: { mime_type: string; data: 
 export const imgPart = (i: Img): Part => ({ inline_data: { mime_type: i.mime, data: i.base64 } });
 
 export async function gemini(model: string, parts: Part[], opts: { image?: boolean; json?: boolean } = {}) {
-  const key = env('GEMINI_API_KEY');
+  const key = apiKey('GEMINI_API_KEY');
   if (!key) throw new Error('The AI isn\'t connected yet: add GEMINI_API_KEY in Vercel');
   const body: Record<string, unknown> = { contents: [{ role: 'user', parts }] };
   if (opts.image) body.generationConfig = { responseModalities: ['TEXT', 'IMAGE'] };
@@ -17,7 +17,11 @@ export async function gemini(model: string, parts: Part[], opts: { image?: boole
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Gemini: ${json.error?.message || res.status}`);
+  if (!res.ok) {
+    const msg = json.error?.message || String(res.status);
+    if (/API key/i.test(msg)) throw new Error(`Gemini rejected the API key (it starts "${key.slice(0, 4)}…", ${key.length} characters). Copy a fresh key from aistudio.google.com/apikey into GEMINI_API_KEY in Vercel, then redeploy.`);
+    throw new Error(`Gemini: ${msg}`);
+  }
   return (json.candidates?.[0]?.content?.parts || []) as { text?: string; inlineData?: { mimeType: string; data: string }; inline_data?: { mime_type: string; data: string } }[];
 }
 
