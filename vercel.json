@@ -1,8 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
   "outputDirectory": "public",
   "functions": {
-    "api/tryon.js": { "maxDuration": 300 },
-    "api/suggest.js": { "maxDuration": 120 }
+    "api/tryon.js": {
+      "maxDuration": 300
+    },
+    "api/suggest.js": {
+      "maxDuration": 120
+    }
   }
 }
