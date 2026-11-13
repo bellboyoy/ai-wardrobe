@@ -11,11 +11,25 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="signed-out">
 <header class="top">
   <h1>Wardrobe</h1>
   <span id="provider" class="pill"></span>
 </header>
+
+<section id="login" class="center" hidden>
+  <form id="login-form" class="card login">
+    <img src="icon.svg" alt="" width="56">
+    <h2>Log in to your wardrobe</h2>
+    <label>Email <input id="login-email" type="email" autocomplete="email" required></label>
+    <label>Password <input id="login-password" type="password" autocomplete="current-password" required></label>
+    <p class="error" id="login-error"></p>
+    <button class="btn primary wide">Log in</button>
+  </form>
+</section>
+<section id="setup" class="center" hidden>
+  <div class="card login"><h2>Almost there</h2><p class="hint">Add <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> to the app's settings (see the README), then reload.</p></div>
+</section>
 
 <main>
   <!-- WARDROBE -->
@@ -70,7 +84,8 @@
     <p class="empty" id="photos-empty">Add a full-length photo of yourself to start trying things on.</p>
     <div class="card">
       <h2>Privacy</h2>
-      <p class="hint">Your photos and clothes are stored only on this computer, in the app's <code>data</code> folder. A photo is sent to the AI service you chose only when you press <b>Try it on</b>.</p>
+      <p class="hint">Your photos and clothes are kept in private storage that only your login can open. A photo is sent to the AI service only when you press <b>Try it on</b>.</p>
+      <div class="row between"><span class="hint" id="who"></span><button class="btn ghost" id="logout">Log out</button></div>
     </div>
   </section>
 </main>
