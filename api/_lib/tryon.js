@@ -2,15 +2,16 @@
 // Images are passed around as { mime, base64 }. Results come back as { mime, buffer }.
 import { downloadImage } from './linkImport.js';
 
+const cleanEnv = (k) => (process.env[k] || '').replace(/[^\x21-\x7E]/g, '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const dataUri = ({ mime, base64 }) => `data:${mime};base64,${base64}`;
 
 export function providerName() {
-  const p = (process.env.TRYON_PROVIDER || '').toLowerCase();
+  const p = cleanEnv('TRYON_PROVIDER').toLowerCase();
   if (p) return p;
-  if (process.env.GEMINI_API_KEY) return 'gemini';
-  if (process.env.FASHN_API_KEY) return 'fashn';
-  if (process.env.REPLICATE_API_TOKEN) return 'replicate';
+  if (cleanEnv('GEMINI_API_KEY')) return 'gemini';
+  if (cleanEnv('FASHN_API_KEY')) return 'fashn';
+  if (cleanEnv('REPLICATE_API_TOKEN')) return 'replicate';
   return 'demo';
 }
 
@@ -44,7 +45,7 @@ export async function runTryOn(person, items) {
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 async function geminiCall(model, parts, wantImage) {
-  const key = process.env.GEMINI_API_KEY;
+  const key = cleanEnv('GEMINI_API_KEY');
   if (!key) throw new Error('GEMINI_API_KEY is missing in .env');
   const body = { contents: [{ role: 'user', parts }] };
   if (wantImage) body.generationConfig = { responseModalities: ['TEXT', 'IMAGE'] };
@@ -87,7 +88,7 @@ async function geminiTryOn(p, items) {
 }
 
 export async function suggestOutfits(items, request) {
-  if (!process.env.GEMINI_API_KEY) throw new Error('Outfit ideas need GEMINI_API_KEY in .env');
+  if (!cleanEnv('GEMINI_API_KEY')) throw new Error('Outfit ideas need GEMINI_API_KEY in .env');
   const model = process.env.GEMINI_TEXT_MODEL || 'gemini-flash-latest';
   const catalog = items.map((it) => `- id=${it.id} | ${it.category} | ${it.name || 'unnamed'}${it.brand ? ` | ${it.brand}` : ''}${it.notes ? ` | ${it.notes}` : ''}`).join('\n');
   const parts = [{
@@ -114,7 +115,7 @@ export async function suggestOutfits(items, request) {
 const FASHN_CAT = { top: 'tops', outerwear: 'tops', bottom: 'bottoms', 'one-piece': 'one-pieces' };
 
 async function fashnOne(person, garment, item) {
-  const key = process.env.FASHN_API_KEY;
+  const key = cleanEnv('FASHN_API_KEY');
   if (!key) throw new Error('FASHN_API_KEY is missing in .env');
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
   const res = await fetch('https://api.fashn.ai/v1/run', {
@@ -139,7 +140,7 @@ async function fashnOne(person, garment, item) {
 const REP_CAT = { top: 'upper_body', outerwear: 'upper_body', bottom: 'lower_body', 'one-piece': 'dresses' };
 
 async function replicateOne(person, garment, item) {
-  const token = process.env.REPLICATE_API_TOKEN;
+  const token = cleanEnv('REPLICATE_API_TOKEN');
   if (!token) throw new Error('REPLICATE_API_TOKEN is missing in .env');
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   const model = process.env.REPLICATE_MODEL || 'cuuupid/idm-vton';
