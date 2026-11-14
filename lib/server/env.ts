@@ -24,3 +24,13 @@ export function providerName(): 'gemini' | 'fashn' | 'replicate' | 'none' {
   }
   return 'none';
 }
+
+const KEY_FOR = { gemini: 'GEMINI_API_KEY', fashn: 'FASHN_API_KEY', replicate: 'REPLICATE_API_TOKEN' } as const;
+
+/** Why try-on is off, in plain words. Names settings only, never their values. */
+export function setupHint(): string {
+  const chosen = env('TRYON_PROVIDER').toLowerCase() as keyof typeof KEY_FOR;
+  const where = 'in Vercel (Settings, Environment Variables, with Production and Preview ticked), then redeploy';
+  if (chosen && chosen in KEY_FOR && !env(KEY_FOR[chosen])) return `TRYON_PROVIDER is set to ${chosen}, but this deployment can't see ${KEY_FOR[chosen]}. Add it ${where}.`;
+  return `Add FASHN_API_KEY or GEMINI_API_KEY ${where}.`;
+}

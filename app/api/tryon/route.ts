@@ -1,13 +1,13 @@
 import { requireUser, route, downloadImage, uploadImage, HttpError } from '@/lib/server/auth';
 import { runTryOn } from '@/lib/server/tryon';
-import { providerName } from '@/lib/server/env';
+import { providerName, setupHint } from '@/lib/server/env';
 import type { Item, Photo } from '@/lib/types';
 
 export const maxDuration = 300;
 
 export const POST = route<{ photoId?: string; itemIds?: string[]; outfitId?: string }>(async (req, body) => {
   const { sb, user } = await requireUser(req);
-  if (providerName() === 'none') throw new HttpError(400, 'No try-on AI is connected yet. Add GEMINI_API_KEY in Vercel to enable it.');
+  if (providerName() === 'none') throw new HttpError(400, `No try-on AI is connected yet. ${setupHint()}`);
   const { data: photos } = await sb.from('photos').select('*').order('created_at', { ascending: false });
   const all = (photos || []) as Photo[];
   const photo = all.find((p) => p.id === body.photoId) || all.find((p) => p.is_default) || all[0];

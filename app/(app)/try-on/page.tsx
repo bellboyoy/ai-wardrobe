@@ -130,7 +130,7 @@ function TryOn() {
             ) : (
               <div className="text-center text-sm text-muted">
                 <p className="text-ink">The try-on AI isn&apos;t connected yet.</p>
-                <p className="mt-1">Add <code className="rounded bg-canvas px-1.5">GEMINI_API_KEY</code> in Vercel to start generating looks. Nothing is faked in the meantime.</p>
+                <p className="mt-1">{config.hint || 'Add an AI key in Vercel to start generating looks.'} Nothing is faked in the meantime.</p>
               </div>
             )}
           </div>

@@ -1,6 +1,6 @@
 // Virtual try-on providers. Choose with TRYON_PROVIDER: gemini | fashn | replicate.
 import type { Img } from './auth';
-import { apiKey, env, providerName } from './env';
+import { apiKey, env, providerName, setupHint } from './env';
 import { gemini, imageModel, imgPart, type Part } from './gemini';
 import { downloadRemoteImage } from './linkImport';
 import { groupOf, category } from '@/lib/categories';
@@ -13,7 +13,7 @@ const ORDER: Record<string, number> = { 'one-piece': 0, bottom: 1, top: 2, outer
 /** person: the main avatar photo. references: extra photos of the same person (face, side) for identity. */
 export async function runTryOn(person: Img, references: Img[], garments: Garment[]): Promise<{ mime: string; buffer: Buffer }> {
   const provider = providerName();
-  if (provider === 'none') throw new Error('No try-on AI is connected yet. Add GEMINI_API_KEY in Vercel to enable it.');
+  if (provider === 'none') throw new Error(`No try-on AI is connected yet. ${setupHint()}`);
   const sorted = [...garments].sort((a, b) => (ORDER[groupOf(a.category)] ?? 9) - (ORDER[groupOf(b.category)] ?? 9));
   if (provider === 'gemini') return geminiTryOn(person, references, sorted);
   // FASHN and IDM-VTON only dress clothes (tops, bottoms, dresses); shoes and accessories are left out.

@@ -78,7 +78,7 @@ export default function ProfilePage() {
           <SectionHeader label="Account" title="Settings" />
           <div className="max-w-2xl divide-y divide-line rounded-card border border-line">
             <div className="flex items-center justify-between p-5"><div><div className="text-[14px]">Signed in as</div><div className="text-[13px] text-muted">{user?.email}</div></div><Button variant="secondary" size="sm" icon={<LogOut className="size-4" strokeWidth={1.5} />} onClick={signOut}>Sign out</Button></div>
-            <div className="flex items-center justify-between p-5"><div><div className="text-[14px]">Try-on AI</div><div className="text-[13px] text-muted">{config.aiReady ? `Connected · ${config.provider === 'gemini' ? 'Google Gemini' : config.provider === 'fashn' ? 'FASHN' : 'Replicate'}` : 'Not connected: add GEMINI_API_KEY in Vercel'}</div></div><span className={`size-2 rounded-full ${config.aiReady ? 'bg-emerald-500' : 'bg-line'}`} /></div>
+            <div className="flex items-center justify-between p-5"><div><div className="text-[14px]">Try-on AI</div><div className="text-[13px] text-muted">{config.aiReady ? `Connected · ${config.provider === 'gemini' ? 'Google Gemini' : config.provider === 'fashn' ? 'FASHN' : 'Replicate'}` : `Not connected. ${config.hint || ''}`}</div></div><span className={`size-2 rounded-full ${config.aiReady ? 'bg-emerald-500' : 'bg-line'}`} /></div>
             <div className="p-5"><div className="text-[14px]">Privacy</div><div className="mt-1 text-[13px] leading-relaxed text-muted">Photos are stored in a private bucket that only your login can open. They are sent to the AI service only when you generate a look or ask the stylist.</div></div>
           </div>
         </section>
