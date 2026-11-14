@@ -1,4 +1,4 @@
-export type Photo = { id: string; path: string; angle: 'front' | 'side' | 'full' | 'other'; is_default: boolean; created_at: string };
+export type Photo = { id: string; path: string; angle: 'front' | 'side' | 'full' | 'other' | 'studio'; is_default: boolean; created_at: string };
 export type Item = {
   id: string; path: string; name: string; category: string; colour: string; brand: string; size: string;
   price: string; source: string; url: string; notes: string; status: 'owned' | 'wishlist'; favourite: boolean; created_at: string;
