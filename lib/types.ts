@@ -13,4 +13,4 @@ export type Profile = {
   sizes: Record<string, string>; measurements: Record<string, string>; styles: string[]; brands: string[];
 };
 export type Suggestion = { name: string; itemIds: string[]; why: string; tags?: string[]; missing?: string };
-export type AppConfig = { provider: string; aiReady: boolean; stylist: boolean; hint?: string };
+export type AppConfig = { provider: string; aiReady: boolean; stylist: boolean; hint?: string; engines?: string[] };

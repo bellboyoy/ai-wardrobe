@@ -12,6 +12,13 @@ export function apiKey(name: string) {
   return v.includes('=') && v.startsWith(name) ? v.slice(name.length + 1) : v;
 }
 
+export type Engine = 'gemini' | 'fashn' | 'replicate';
+/** Try-on engines that have a key set. */
+export function engines(): Engine[] {
+  return (['fashn', 'gemini', 'replicate'] as const).filter((e) => Boolean(env(KEY_FOR_ENGINE[e])));
+}
+const KEY_FOR_ENGINE = { gemini: 'GEMINI_API_KEY', fashn: 'FASHN_API_KEY', replicate: 'REPLICATE_API_TOKEN' } as const;
+
 export function providerName(): 'gemini' | 'fashn' | 'replicate' | 'none' {
   const p = env('TRYON_PROVIDER').toLowerCase();
   if (p === 'gemini' && env('GEMINI_API_KEY')) return 'gemini';

@@ -1,6 +1,6 @@
 // Virtual try-on providers. Choose with TRYON_PROVIDER: gemini | fashn | replicate.
 import type { Img } from './auth';
-import { apiKey, env, providerName, setupHint } from './env';
+import { apiKey, env, providerName, setupHint, type Engine } from './env';
 import { gemini, imageModel, imgPart, type Part } from './gemini';
 import { downloadRemoteImage } from './linkImport';
 import { groupOf, category } from '@/lib/categories';
@@ -11,13 +11,14 @@ const dataUri = (i: Img) => `data:${i.mime};base64,${i.base64}`;
 const ORDER: Record<string, number> = { 'one-piece': 0, bottom: 1, top: 2, outerwear: 3, shoes: 4, accessory: 5 };
 
 /** person: the main avatar photo. references: extra photos of the same person (face, side) for identity. */
-export async function runTryOn(person: Img, references: Img[], garments: Garment[]): Promise<{ mime: string; buffer: Buffer }> {
-  const provider = providerName();
+export async function runTryOn(person: Img, references: Img[], garments: Garment[], engine?: Engine): Promise<{ mime: string; buffer: Buffer }> {
+  const provider = engine || providerName();
   if (provider === 'none') throw new Error(`No try-on AI is connected yet. ${setupHint()}`);
   const sorted = [...garments].sort((a, b) => (ORDER[groupOf(a.category)] ?? 9) - (ORDER[groupOf(b.category)] ?? 9));
   if (provider === 'gemini') return geminiTryOn(person, references, sorted);
-  // FASHN and IDM-VTON only dress clothes (tops, bottoms, dresses); shoes and accessories are left out.
-  const wearable = sorted.filter((g) => !['shoes', 'accessory'].includes(groupOf(g.category)));
+  // FASHN Try-On Max handles shoes and accessories; FASHN v1.6 and IDM-VTON only dress clothes.
+  const all = provider === 'fashn' && fashnModel() === 'tryon-max';
+  const wearable = all ? sorted : sorted.filter((g) => !['shoes', 'accessory'].includes(groupOf(g.category)));
   if (!wearable.length) throw new Error('This try-on service can only do clothes, not shoes or accessories. Add a top, bottom, jacket or dress.');
   let current = person;
   for (const g of wearable) current = provider === 'fashn' ? await fashnOne(current, g) : await replicateOne(current, g);
@@ -52,12 +53,25 @@ async function geminiTryOn(person: Img, refs: Img[], items: Garment[]) {
 
 const FASHN = env('FASHN_BASE_URL') || 'https://api.fashn.ai/v1';
 const FASHN_CAT: Record<string, string> = { top: 'tops', outerwear: 'tops', bottom: 'bottoms', 'one-piece': 'one-pieces' };
+const fashnModel = () => env('FASHN_MODEL') || 'tryon-max';
+function fashnPrompt(g: Garment) {
+  const what = [g.colour, category(g.category).one.toLowerCase()].filter(Boolean).join(' ');
+  const covers: Record<string, string> = {
+    top: 'Completely replace whatever the person wears on their upper body, including any hoodie, hood, jacket or sleeves underneath, so only the new top is visible.',
+    outerwear: 'Wear it as the outer layer over the current top.',
+    bottom: 'Completely replace the trousers, jeans or shorts.',
+    'one-piece': 'Completely replace the current outfit.',
+  };
+  return `The person wears the ${what}${g.name ? ` (${g.name})` : ''}. ${covers[groupOf(g.category)] || ''} Keep the exact colours, crest, sponsor logos and print of the product, with a natural fit. Keep the face, hair, hands, pose and background unchanged.`;
+}
 async function fashnOne(person: Img, g: Garment): Promise<Img> {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey('FASHN_API_KEY')}` };
-  const res = await fetch(`${FASHN}/run`, {
-    method: 'POST', headers,
-    body: JSON.stringify({ model_name: env('FASHN_MODEL') || 'tryon-v1.6', inputs: { model_image: dataUri(person), garment_image: dataUri(g.img), category: FASHN_CAT[groupOf(g.category)] || 'auto', mode: 'quality', return_base64: true } }),
-  });
+  const model = fashnModel();
+  const inputs =
+    model === 'tryon-max'
+      ? { model_image: dataUri(person), product_image: dataUri(g.img), prompt: fashnPrompt(g), generation_mode: env('FASHN_QUALITY') || 'quality', resolution: env('FASHN_RESOLUTION') || '1k', return_base64: true }
+      : { model_image: dataUri(person), garment_image: dataUri(g.img), category: FASHN_CAT[groupOf(g.category)] || 'auto', mode: 'quality', garment_photo_type: 'auto', return_base64: true };
+  const res = await fetch(`${FASHN}/run`, { method: 'POST', headers, body: JSON.stringify({ model_name: model, inputs }) });
   const start = await res.json().catch(() => ({}));
   if (!res.ok || start.error) {
     const msg = String(start.error?.message || start.message || start.error || res.status);

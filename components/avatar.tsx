@@ -80,10 +80,11 @@ export function AvatarManager() {
 
 export function AvatarTips() {
   return (
-    <ul className="grid gap-4 text-[13px] leading-relaxed text-muted sm:grid-cols-3">
-      <li><span className="block text-ink">Full body is the canvas</span>Your main photo is what the clothes are placed on. Stand straight, arms slightly away from your body.</li>
-      <li><span className="block text-ink">Front and side keep it you</span>Close-ups help the AI keep your face and proportions consistent across looks.</li>
-      <li><span className="block text-ink">Light and background</span>Soft daylight, a plain wall and fitted clothes give the most realistic results.</li>
+    <ul className="grid gap-4 text-[13px] leading-relaxed text-muted sm:grid-cols-2 lg:grid-cols-4">
+      <li><span className="block text-ink">Ask someone to take it</span>A full-length photo from about two metres away, phone at chest height. Mirror selfies hide your body behind the phone.</li>
+      <li><span className="block text-ink">Hands by your sides</span>Stand straight and face the camera, with nothing in your hands or in front of your body.</li>
+      <li><span className="block text-ink">Fitted, plain clothes</span>A plain T-shirt and slim trousers work best. Hoodies, coats and bold logos confuse the AI.</li>
+      <li><span className="block text-ink">Light and background</span>Soft daylight and a plain wall. Add a front and side close-up to keep your face consistent.</li>
     </ul>
   );
 }
