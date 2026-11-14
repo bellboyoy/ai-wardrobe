@@ -32,6 +32,7 @@ function useStoreState() {
   const [config, setConfig] = useState<AppConfig>({ provider: 'none', aiReady: false, stylist: false });
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [cleaning, setCleaning] = useState<string[]>([]);
   const [looks, setLooks] = useState<Look[]>([]);
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
@@ -77,7 +78,7 @@ function useStoreState() {
     ]);
     const stale = (x: Look) => x.status === 'running' && Date.now() - new Date(x.created_at).getTime() > 6 * 60_000;
     const lk = l.map((x) => (stale(x) ? { ...x, status: 'error' as const, error: 'Timed out, please try again' } : x));
-    await sign([...p.map((x) => x.path), ...i.map((x) => x.path), ...lk.map((x) => x.path)]);
+    await sign([...p.map((x) => x.path), ...i.flatMap((x) => [x.path, x.original_path || ""]).filter(Boolean), ...lk.map((x) => x.path)]);
     setPhotos(p); setItems(i); setLooks(lk); setOutfits(o);
     setProfile({ ...EMPTY_PROFILE, ...((prof.data as Profile) || {}) });
     setLoaded(true);
@@ -159,9 +160,21 @@ function useStoreState() {
     setItems((list) => list.map((i) => (i.id === id ? { ...i, ...patch } : i)));
     check(await sb.from('items').update(patch).eq('id', id));
   };
+  /** Gemini makes a clean photo on white; the original is kept. */
+  const cleanItem = async (id: string) => {
+    setCleaning((c) => [...c, id]);
+    try { return await api<Item>('clean-image', { itemId: id }); } finally { setCleaning((c) => c.filter((x) => x !== id)); await refresh(); }
+  };
+  const restoreOriginal = async (it: Item) => {
+    if (!it.original_path) return;
+    check(await sb.from('items').update({ path: it.original_path, original_path: null }).eq('id', it.id));
+    if (it.path !== it.original_path) await removeFile(it.path);
+    await refresh();
+  };
   const deleteItem = async (it: Item) => {
     check(await sb.from('items').delete().eq('id', it.id));
     await removeFile(it.path);
+    if (it.original_path && it.original_path !== it.path) await removeFile(it.original_path);
     for (const o of outfits.filter((o) => o.item_ids.includes(it.id))) {
       check(await sb.from('outfits').update({ item_ids: o.item_ids.filter((x) => x !== it.id) }).eq('id', o.id));
     }
@@ -208,7 +221,7 @@ function useStoreState() {
 
   return {
     user, config, loaded, photos, items, looks, outfits, profile, avatar, itemById, url, refresh, api, signIn, signOut,
-    removeFile, addPhoto, replacePhoto, updatePhoto, buildStudio, deletePhoto, uploadItemImage, importItemImage, addItem, updateItem, deleteItem,
+    removeFile, addPhoto, replacePhoto, updatePhoto, buildStudio, deletePhoto, uploadItemImage, importItemImage, addItem, updateItem, deleteItem, cleanItem, restoreOriginal, cleaning,
     tryOn, updateLook, deleteLook, addOutfit, updateOutfit, deleteOutfit, saveProfile,
   };
 }

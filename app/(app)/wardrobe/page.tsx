@@ -1,11 +1,11 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search, Shirt } from 'lucide-react';
+import { Plus, Search, Shirt, Sparkles } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { CATEGORIES, category, groupOf } from '@/lib/categories';
 import type { Item } from '@/lib/types';
-import { Button, Chip, EmptyState, PageHeader, Select } from '@/components/ui';
+import { Button, Chip, EmptyState, PageHeader, Select, useToast } from '@/components/ui';
 import { AddItemSheet, ItemCard, ItemDetailSheet } from '@/components/wardrobe';
 
 const price = (p: string) => parseFloat((p || '').replace(/[^\d.,]/g, '').replace(',', '.')) || Infinity;
@@ -23,14 +23,17 @@ export default function WardrobePage() {
 }
 
 function Wardrobe() {
-  const { items } = useStore();
+  const { items, config, cleanItem } = useStore();
+  const toast = useToast();
   const params = useSearchParams();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('all');
   const [status, setStatus] = useState<'all' | 'owned' | 'wishlist' | 'favourites'>('all');
   const [sort, setSort] = useState('newest');
-  const [open, setOpen] = useState<Item | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = items.find((i) => i.id === openId) || null;
+  const setOpen = (i: Item | null) => setOpenId(i?.id || null);
   const [adding, setAdding] = useState(false);
   const [initialLink, setInitialLink] = useState<string>();
 
@@ -55,13 +58,32 @@ function Wardrobe() {
       .sort(SORTS[sort]);
   }, [items, q, cat, status, sort]);
 
+  const unclean = items.filter((i) => !i.original_path);
+  const [cleaningAll, setCleaningAll] = useState(false);
+  const cleanAll = async () => {
+    setCleaningAll(true);
+    let ok = 0;
+    for (const it of unclean) { try { await cleanItem(it.id); ok++; } catch (e) { toast((e as Error).message, 'error'); break; } }
+    setCleaningAll(false);
+    if (ok) toast(`${ok} clean photo${ok === 1 ? '' : 's'} ready. Originals are kept.`);
+  };
+
   return (
     <>
       <PageHeader
         label={`${items.length} piece${items.length === 1 ? '' : 's'}`}
         title="My Wardrobe"
         intro="Everything you own and everything you're considering, in one place."
-        action={<Button size="lg" icon={<Plus className="size-4" strokeWidth={1.5} />} onClick={() => { setInitialLink(undefined); setAdding(true); }}>Add a piece</Button>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            {config.stylist && unclean.length > 0 && (
+              <Button size="lg" variant="secondary" loading={cleaningAll} icon={<Sparkles className="size-4" strokeWidth={1.5} />} onClick={cleanAll}>
+                Clean up {unclean.length} photo{unclean.length === 1 ? '' : 's'}
+              </Button>
+            )}
+            <Button size="lg" icon={<Plus className="size-4" strokeWidth={1.5} />} onClick={() => { setInitialLink(undefined); setAdding(true); }}>Add a piece</Button>
+          </div>
+        }
       />
 
       {items.length === 0 ? (

@@ -92,3 +92,6 @@ alter table public.profiles enable row level security;
 drop policy if exists "own profile" on public.profiles;
 create policy "own profile" on public.profiles for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- The original photo of an item, kept when the AI makes a clean product photo on white.
+alter table public.items add column if not exists original_path text;
