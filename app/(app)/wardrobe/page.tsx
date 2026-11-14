@@ -1,12 +1,13 @@
 'use client';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search, Shirt, Sparkles } from 'lucide-react';
+import { Images, Plus, Search, Shirt, Sparkles } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { CATEGORIES, category, groupOf } from '@/lib/categories';
 import type { Item } from '@/lib/types';
 import { Button, Chip, EmptyState, PageHeader, Select, useToast } from '@/components/ui';
 import { AddItemSheet, ItemCard, ItemDetailSheet } from '@/components/wardrobe';
+import { BulkUploadSheet } from '@/components/bulk';
 
 const price = (p: string) => parseFloat((p || '').replace(/[^\d.,]/g, '').replace(',', '.')) || Infinity;
 const SORTS: Record<string, (a: Item, b: Item) => number> = {
@@ -60,6 +61,7 @@ function Wardrobe() {
 
   const unclean = items.filter((i) => !i.original_path);
   const [cleaningAll, setCleaningAll] = useState(false);
+  const [bulk, setBulk] = useState(false);
   const cleanAll = async () => {
     setCleaningAll(true);
     let ok = 0;
@@ -81,13 +83,14 @@ function Wardrobe() {
                 Clean up {unclean.length} photo{unclean.length === 1 ? '' : 's'}
               </Button>
             )}
+            <Button size="lg" variant="secondary" icon={<Images className="size-4" strokeWidth={1.5} />} onClick={() => setBulk(true)}>Add many</Button>
             <Button size="lg" icon={<Plus className="size-4" strokeWidth={1.5} />} onClick={() => { setInitialLink(undefined); setAdding(true); }}>Add a piece</Button>
           </div>
         }
       />
 
       {items.length === 0 ? (
-        <EmptyState icon={<Shirt className="size-5" strokeWidth={1.5} />} title="Start your wardrobe" text="Paste a link from Vinted, SHEIN, Zara or ASOS, or upload a photo or screenshot. You can share links straight into the app too." action={<Button onClick={() => setAdding(true)}>Add your first piece</Button>} />
+        <EmptyState icon={<Shirt className="size-5" strokeWidth={1.5} />} title="Start your wardrobe" text="Paste a link from Vinted, SHEIN, Zara or ASOS, or upload a photo or screenshot. You can share links straight into the app too." action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={() => setAdding(true)}>Add your first piece</Button><Button variant="secondary" onClick={() => setBulk(true)}>Add many at once</Button></div>} />
       ) : (
         <>
           <div className="sticky top-14 z-20 -mx-5 mb-8 space-y-4 border-b border-line/60 bg-white/90 px-5 pb-4 pt-2 backdrop-blur-xl md:top-0 md:mx-0 md:px-0 md:pt-4">
@@ -123,6 +126,7 @@ function Wardrobe() {
 
       <AddItemSheet open={adding} onClose={() => setAdding(false)} initialLink={initialLink} />
       <ItemDetailSheet item={open} onClose={() => setOpen(null)} />
+      <BulkUploadSheet open={bulk} onClose={() => setBulk(false)} />
     </>
   );
 }
