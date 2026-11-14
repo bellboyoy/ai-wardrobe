@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 import { useRef, useState } from 'react';
-import { Heart } from 'lucide-react';
+import { Check, Heart, Trash2 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import type { Look } from '@/lib/types';
 import { Photo, cx } from './ui';
@@ -50,7 +50,7 @@ export function GeneratingFrame({ photo, className }: { photo?: string; classNam
   );
 }
 
-export function LookCard({ look, onOpen, selected, onSelect }: { look: Look; onOpen?: () => void; selected?: boolean; onSelect?: () => void }) {
+export function LookCard({ look, onOpen, selected, onSelect, onDelete }: { look: Look; onOpen?: () => void; selected?: boolean; onSelect?: () => void; onDelete?: () => void }) {
   const { url, itemById, updateLook, photos } = useStore();
   const pieces = look.item_ids.map((id) => itemById[id]).filter(Boolean);
   const photo = photos.find((p) => p.id === look.photo_id);
@@ -68,6 +68,16 @@ export function LookCard({ look, onOpen, selected, onSelect }: { look: Look; onO
             </div>
           )}
         </button>
+        {onSelect && (
+          <span className={cx('pointer-events-none absolute right-3 top-3 grid size-7 place-items-center rounded-full border-2 transition-colors', selected ? 'border-ink bg-ink text-white' : 'border-white bg-white/60 backdrop-blur')}>
+            {selected && <Check className="size-4" strokeWidth={2} />}
+          </span>
+        )}
+        {onDelete && !onSelect && look.status !== 'running' && (
+          <button aria-label="Delete look" title="Delete look" onClick={onDelete} className="absolute left-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 text-ink-2 shadow-soft backdrop-blur transition-all hover:scale-105 hover:text-danger md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100">
+            <Trash2 className="size-4" strokeWidth={1.5} />
+          </button>
+        )}
         {look.status === 'done' && !onSelect && (
           <button aria-label="Favourite" onClick={() => updateLook(look.id, { favourite: !look.favourite })} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 shadow-soft backdrop-blur transition-transform hover:scale-105">
             <Heart className={cx('size-4', look.favourite && 'fill-ink')} strokeWidth={1.5} />
