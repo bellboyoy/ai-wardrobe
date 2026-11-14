@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 import { useState } from 'react';
-import { Plus, Star, RefreshCw, Trash2 } from 'lucide-react';
+import { Plus, Star, RefreshCw, Trash2, Sparkles } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import type { Photo as PhotoT } from '@/lib/types';
 import { Button, Photo, Select, cx, useToast } from './ui';
@@ -12,7 +12,7 @@ const ANGLES: { id: PhotoT['angle']; label: string; hint: string }[] = [
   { id: 'side', label: 'Side profile', hint: 'Turned 90°, natural posture' },
   { id: 'other', label: 'Other angle', hint: 'Any other clear photo' },
 ];
-export const angleLabel = (a: string) => ANGLES.find((x) => x.id === a)?.label || 'Photo';
+export const angleLabel = (a: string) => (a === 'studio' ? 'Studio avatar' : ANGLES.find((x) => x.id === a)?.label || 'Photo');
 
 export function AvatarManager() {
   const { photos, url, addPhoto, replacePhoto, updatePhoto, deletePhoto } = useStore();
@@ -28,7 +28,7 @@ export function AvatarManager() {
   return (
     <div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {photos.map((p) => (
+        {photos.filter((p) => p.angle !== 'studio').map((p) => (
           <div key={p.id} className="group animate-fade-up">
             <div className="relative overflow-hidden rounded-card">
               <Photo src={url(p.path)} className="aspect-[3/4] w-full" />
@@ -73,6 +73,56 @@ export function AvatarManager() {
         <Select aria-label="Photo angle" value={angle} onChange={(e) => setAngle(e.target.value as PhotoT['angle'])} className="!h-10 w-auto !text-[14px]">
           {ANGLES.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </Select>
+      </div>
+    </div>
+  );
+}
+
+export function StudioAvatar() {
+  const { photos, url, config, buildStudio, updatePhoto } = useStore();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const studio = photos.find((p) => p.angle === 'studio');
+  const own = photos.filter((p) => p.angle !== 'studio');
+  const fresh = studio ? own.filter((p) => p.created_at > studio.created_at).length : own.length;
+  const geminiReady = config.stylist;
+
+  const build = async () => {
+    setBusy(true); setError('');
+    try { const r = await buildStudio(); toast(`Studio avatar built from ${r.used} photo${r.used === 1 ? '' : 's'}`); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="grid gap-8 rounded-card border border-line bg-white p-5 md:grid-cols-[minmax(0,240px)_minmax(0,1fr)] md:p-8">
+      <div className="relative overflow-hidden rounded-card bg-canvas">
+        {studio ? <Photo src={url(studio.path)} className="aspect-[3/4] w-full" /> : (
+          <div className="grid aspect-[3/4] w-full place-items-center p-6 text-center text-[13px] text-muted">Your studio avatar appears here</div>
+        )}
+        {busy && <div className="absolute inset-0 grid place-items-center bg-white/70 text-[13px]"><span className="flex items-center gap-2"><RefreshCw className="size-4 animate-spin" strokeWidth={1.5} /> Building…</span></div>}
+        {studio?.is_default && <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] backdrop-blur">Main</span>}
+      </div>
+      <div className="flex flex-col justify-center">
+        <span className="label-xs">Studio avatar · Gemini</span>
+        <h3 className="mt-2 text-2xl tracking-tight">One clean photo of you, built from all of them</h3>
+        <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-muted">
+          Gemini studies every photo you add and creates a full-length studio shot: arms by your sides, fitted plain clothes, plain backdrop. It becomes your main photo for try-on. Add more photos over time and rebuild it to make it more like you.
+        </p>
+        <p className="mt-4 text-[13px] text-muted">
+          {own.length ? `${own.length} photo${own.length === 1 ? '' : 's'} of you` : 'No photos yet'}
+          {studio && fresh > 0 ? ` · ${fresh} new since the last build` : ''}
+        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button onClick={build} loading={busy} disabled={!own.length || !geminiReady} icon={<Sparkles className="size-4" strokeWidth={1.5} />}>
+            {studio ? 'Rebuild studio avatar' : 'Build studio avatar'}
+          </Button>
+          {studio && !studio.is_default && <Button variant="secondary" onClick={() => updatePhoto(studio.id, { is_default: true }).then(() => toast('Main photo updated'))}>Use as main photo</Button>}
+        </div>
+        {!geminiReady && <p className="mt-4 text-[13px] text-muted">Needs GEMINI_API_KEY in Vercel.</p>}
+        {geminiReady && <p className="mt-4 text-[13px] text-muted">Uses Gemini image generation, which needs billing turned on for your Google key. Each build is one image.</p>}
+        {error && <p className="mt-4 rounded-ctl bg-canvas p-4 text-[13px] text-ink">{error}</p>}
       </div>
     </div>
   );

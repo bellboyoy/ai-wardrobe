@@ -129,6 +129,9 @@ function useStoreState() {
     await removeFile(p.path);
     await refresh();
   };
+  const buildStudio = async () => {
+    try { return await api<{ photo: Photo; used: number }>('avatar', {}); } finally { await refresh(); }
+  };
   const updatePhoto = async (id: string, patch: Partial<Photo>) => {
     if (patch.is_default) check(await sb.from('photos').update({ is_default: false }).neq('id', id));
     check(await sb.from('photos').update(patch).eq('id', id));
@@ -205,7 +208,7 @@ function useStoreState() {
 
   return {
     user, config, loaded, photos, items, looks, outfits, profile, avatar, itemById, url, refresh, api, signIn, signOut,
-    removeFile, addPhoto, replacePhoto, updatePhoto, deletePhoto, uploadItemImage, importItemImage, addItem, updateItem, deleteItem,
+    removeFile, addPhoto, replacePhoto, updatePhoto, buildStudio, deletePhoto, uploadItemImage, importItemImage, addItem, updateItem, deleteItem,
     tryOn, updateLook, deleteLook, addOutfit, updateOutfit, deleteOutfit, saveProfile,
   };
 }

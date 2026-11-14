@@ -4,7 +4,7 @@ import { LogOut, Lock } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import type { Profile } from '@/lib/types';
 import { Button, Chip, Input, Label, PageHeader, SectionHeader, Select, useToast } from '@/components/ui';
-import { AvatarManager, AvatarTips } from '@/components/avatar';
+import { AvatarManager, AvatarTips, StudioAvatar } from '@/components/avatar';
 
 const STYLES = ['Minimal', 'Classic', 'Smart casual', 'Streetwear', 'Relaxed', 'Tailored', 'Vintage', 'Sporty', 'Scandi', 'Preppy', 'Workwear', 'Elevated basics'];
 const SIZE_FIELDS = [['tops', 'Tops'], ['bottoms', 'Bottoms'], ['waist', 'Waist / leg'], ['shoes', 'Shoes']];
@@ -33,6 +33,7 @@ export default function ProfilePage() {
           <SectionHeader label="Digital avatar" title="Your photos" />
           <p className="-mt-2 mb-8 max-w-2xl text-[14px] leading-relaxed text-muted">Your main photo is the canvas for every try-on. Front and side photos help the AI keep your face and proportions consistent.</p>
           <AvatarManager />
+          <div className="mt-10"><StudioAvatar /></div>
           <div className="mt-10 rounded-card bg-canvas p-6 md:p-8"><AvatarTips /></div>
         </section>
 
