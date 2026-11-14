@@ -1,6 +1,6 @@
 // Virtual try-on providers. Choose with TRYON_PROVIDER: gemini | fashn | replicate.
 import type { Img } from './auth';
-import { env, providerName } from './env';
+import { apiKey, env, providerName } from './env';
 import { gemini, imageModel, imgPart, type Part } from './gemini';
 import { downloadRemoteImage } from './linkImport';
 import { groupOf, category } from '@/lib/categories';
@@ -16,8 +16,11 @@ export async function runTryOn(person: Img, references: Img[], garments: Garment
   if (provider === 'none') throw new Error('No try-on AI is connected yet. Add GEMINI_API_KEY in Vercel to enable it.');
   const sorted = [...garments].sort((a, b) => (ORDER[groupOf(a.category)] ?? 9) - (ORDER[groupOf(b.category)] ?? 9));
   if (provider === 'gemini') return geminiTryOn(person, references, sorted);
+  // FASHN and IDM-VTON only dress clothes (tops, bottoms, dresses); shoes and accessories are left out.
+  const wearable = sorted.filter((g) => !['shoes', 'accessory'].includes(groupOf(g.category)));
+  if (!wearable.length) throw new Error('This try-on service can only do clothes, not shoes or accessories. Add a top, bottom, jacket or dress.');
   let current = person;
-  for (const g of sorted) current = provider === 'fashn' ? await fashnOne(current, g) : await replicateOne(current, g);
+  for (const g of wearable) current = provider === 'fashn' ? await fashnOne(current, g) : await replicateOne(current, g);
   return { mime: current.mime, buffer: Buffer.from(current.base64, 'base64') };
 }
 
@@ -47,18 +50,24 @@ async function geminiTryOn(person: Img, refs: Img[], items: Garment[]) {
   return { mime: d.mime || 'image/png', buffer: Buffer.from(d.data, 'base64') };
 }
 
+const FASHN = env('FASHN_BASE_URL') || 'https://api.fashn.ai/v1';
 const FASHN_CAT: Record<string, string> = { top: 'tops', outerwear: 'tops', bottom: 'bottoms', 'one-piece': 'one-pieces' };
 async function fashnOne(person: Img, g: Garment): Promise<Img> {
-  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${env('FASHN_API_KEY')}` };
-  const res = await fetch('https://api.fashn.ai/v1/run', {
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey('FASHN_API_KEY')}` };
+  const res = await fetch(`${FASHN}/run`, {
     method: 'POST', headers,
     body: JSON.stringify({ model_name: env('FASHN_MODEL') || 'tryon-v1.6', inputs: { model_image: dataUri(person), garment_image: dataUri(g.img), category: FASHN_CAT[groupOf(g.category)] || 'auto', mode: 'quality', return_base64: true } }),
   });
   const start = await res.json().catch(() => ({}));
-  if (!res.ok || start.error) throw new Error(`FASHN: ${start.error?.message || start.error || res.status}`);
+  if (!res.ok || start.error) {
+    const msg = String(start.error?.message || start.message || start.error || res.status);
+    if (res.status === 401 || /api key|unauthori/i.test(msg)) throw new Error('FASHN rejected the API key. Copy it again from app.fashn.ai into FASHN_API_KEY in Vercel, then redeploy.');
+    if (res.status === 402 || /credit/i.test(msg)) throw new Error('Your FASHN account is out of credits. Top up at app.fashn.ai and try again.');
+    throw new Error(`FASHN: ${msg}`);
+  }
   for (let i = 0; i < 120; i++) {
     await sleep(2000);
-    const s = await (await fetch(`https://api.fashn.ai/v1/status/${start.id}`, { headers })).json();
+    const s = await (await fetch(`${FASHN}/status/${start.id}`, { headers })).json();
     if (s.status === 'completed') return fromOutput(s.output[0]);
     if (s.status === 'failed') throw new Error(`FASHN: ${s.error?.message || 'try-on failed'}`);
   }
@@ -88,6 +97,7 @@ async function replicateOne(person: Img, g: Garment): Promise<Img> {
 async function fromOutput(out: string): Promise<Img> {
   const m = out.match(/^data:([^;]+);base64,(.*)$/s);
   if (m) return { mime: m[1], base64: m[2] };
+  if (!/^https?:/.test(out)) return { mime: 'image/png', base64: out };
   const { buffer, mime } = await downloadRemoteImage(out);
   return { mime, base64: buffer.toString('base64') };
 }
