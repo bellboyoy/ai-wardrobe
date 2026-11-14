@@ -2,11 +2,11 @@
 /* eslint-disable @next/next/no-img-element */
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Shuffle, Plus, Sparkles, Heart, Trash2, Pencil, X } from 'lucide-react';
+import { Shuffle, Plus, Sparkles, Heart, Trash2, Pencil, X, ChevronDown } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { groupOf, type Group } from '@/lib/categories';
 import type { Outfit } from '@/lib/types';
-import { Button, EmptyState, Input, Label, PageHeader, Photo, SectionHeader, Sheet, Textarea, cx, useToast } from '@/components/ui';
+import { Button, Confirm, EmptyState, Input, Label, PageHeader, Photo, SectionHeader, Sheet, Textarea, cx, useToast } from '@/components/ui';
 import { ItemPicker } from '@/components/wardrobe';
 import { StylistPanel } from '@/components/stylist';
 
@@ -34,8 +34,10 @@ function Studio() {
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState('');
   const [saving, setSaving] = useState(false);
+  const [more, setMore] = useState(false);
+  const [removing, setRemoving] = useState<Outfit | null>(null);
 
-  const load = (o: Outfit) => { setEditing(o); setSel(o.item_ids); setName(o.name); setNotes(o.notes); setTags((o.tags || []).join(', ')); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const load = (o: Outfit) => { setEditing(o); setSel(o.item_ids); setName(o.name); setNotes(o.notes); setTags((o.tags || []).join(', ')); setMore(Boolean(o.notes || o.tags?.length)); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   useEffect(() => {
     const id = params.get('outfit');
     const o = id && outfits.find((x) => x.id === id);
@@ -75,7 +77,7 @@ function Studio() {
     setSel(next);
   };
 
-  const reset = () => { setEditing(null); setSel([]); setName(''); setNotes(''); setTags(''); };
+  const reset = () => { setEditing(null); setSel([]); setName(''); setNotes(''); setTags(''); setMore(false); };
   const save = async (andTry = false) => {
     setSaving(true);
     try {
@@ -86,6 +88,13 @@ function Studio() {
       else { setEditing(o); }
     } finally { setSaving(false); }
   };
+
+  const actions = (viewLabel: string) => (
+    <>
+      <Button variant="secondary" disabled={!sel.length} loading={saving} onClick={() => save(false)}>{editing ? 'Save changes' : 'Save outfit'}</Button>
+      <Button disabled={!sel.length} icon={<Sparkles className="size-4" strokeWidth={1.5} />} onClick={() => save(true)}>{viewLabel}</Button>
+    </>
+  );
 
   if (!items.length) {
     return (
@@ -101,51 +110,64 @@ function Studio() {
       <PageHeader
         label="Outfit studio"
         title={editing ? editing.name : 'Compose an outfit'}
-        intro="Choose a piece for each slot, or shuffle for a fresh combination. Save it, then see it on you."
+        intro={<span className="max-md:hidden">Choose a piece for each slot, or shuffle for a fresh combination. Save it, then see it on you.</span>}
         action={<>
-          <Button variant="secondary" icon={<Shuffle className="size-4" strokeWidth={1.5} />} onClick={shuffle}>Shuffle</Button>
+          <Button variant="secondary" className="max-md:hidden" icon={<Shuffle className="size-4" strokeWidth={1.5} />} onClick={shuffle}>Shuffle</Button>
           {(sel.length > 0 || editing) && <Button variant="ghost" onClick={reset}>New outfit</Button>}
         </>}
       />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        {/* flat-lay board */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div>
+      <div className="grid gap-6 md:gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+        {/* flat-lay board: three across on phones, with Shuffle as the sixth tile */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {SLOTS.map((s) => {
             const ps = inSlot(s.id);
             return (
-              <button key={s.id} onClick={() => setSlot(s)} className={cx('group relative overflow-hidden rounded-card text-left transition-all duration-500', ps.length ? 'bg-canvas hover:shadow-soft' : 'border border-dashed border-line hover:border-ink/30')}>
+              <button key={s.id} onClick={() => setSlot(s)} className={cx('group relative overflow-hidden rounded-2xl text-left sm:rounded-card transition-all duration-500', ps.length ? 'bg-canvas hover:shadow-soft' : 'border border-dashed border-line hover:border-ink/30')}>
                 {ps.length ? (
-                  <div className={cx('grid aspect-[4/5] w-full', ps.length > 1 && 'grid-cols-2 gap-1 p-1')}>
-                    {ps.map((p) => <img key={p.id} src={url(p.path)} alt={p.name} className="size-full object-contain p-3 transition-transform duration-700 group-hover:scale-[1.03]" />)}
+                  <div className={cx('grid aspect-[3/4] w-full sm:aspect-[4/5]', ps.length > 1 && 'grid-cols-2 gap-1 p-1')}>
+                    {ps.map((p) => <img key={p.id} src={url(p.path)} alt={p.name} className="size-full min-h-0 object-contain p-2 pt-7 sm:p-3 transition-transform duration-700 group-hover:scale-[1.03]" />)}
                   </div>
                 ) : (
-                  <div className="grid aspect-[4/5] w-full place-items-center"><span className="grid size-10 place-items-center rounded-full bg-canvas text-muted transition-colors group-hover:text-ink"><Plus className="size-4" strokeWidth={1.5} /></span></div>
+                  <div className="grid aspect-[3/4] w-full place-items-center sm:aspect-[4/5]"><span className="grid size-9 sm:size-10 place-items-center rounded-full bg-canvas text-muted transition-colors group-hover:text-ink"><Plus className="size-4" strokeWidth={1.5} /></span></div>
                 )}
-                <div className="absolute left-3 top-3 label-xs !text-[10px]">{s.label}</div>
-                {ps[0] && <div className="absolute inset-x-3 bottom-3 truncate text-[12px] text-ink-2">{ps.map((p) => p.name).join(', ')}</div>}
+                <div className="absolute left-2.5 top-2.5 label-xs !text-[9px] sm:left-3 sm:top-3 sm:!text-[10px]">{s.label}</div>
+                {ps[0] && <div className="absolute inset-x-3 bottom-3 hidden truncate text-[12px] text-ink-2 sm:block">{ps.map((p) => p.name).join(', ')}</div>}
               </button>
             );
           })}
+          <button onClick={shuffle} className="group grid aspect-[3/4] place-items-center rounded-2xl bg-ink text-white transition-transform active:scale-[0.98] sm:aspect-[4/5] sm:rounded-card md:hidden">
+            <span className="flex flex-col items-center gap-2"><Shuffle className="size-5" strokeWidth={1.5} /><span className="text-[12px] font-medium">Shuffle</span></span>
+          </button>
         </div>
 
         {/* details */}
         <div className="space-y-5">
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sunday in the city" />
-          <Input label="Tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="casual, weekend, autumn" />
-          <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Roll the sleeves, tuck the front…" />
-          <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-            <Button className="flex-1" variant="secondary" disabled={!sel.length} loading={saving} onClick={() => save(false)}>{editing ? 'Save changes' : 'Save outfit'}</Button>
-            <Button className="flex-1" disabled={!sel.length} icon={<Sparkles className="size-4" strokeWidth={1.5} />} onClick={() => save(true)}>Save & view on me</Button>
+          <button type="button" onClick={() => setMore((m) => !m)} className="flex items-center gap-1.5 text-[13px] text-muted transition-colors hover:text-ink md:hidden" aria-expanded={more}>
+            {more ? 'Hide tags & notes' : 'Add tags & notes'}<ChevronDown className={cx('size-4 transition-transform', more && 'rotate-180')} strokeWidth={1.5} />
+          </button>
+          <div className={cx('space-y-5', !more && 'hidden md:block')}>
+            <Input label="Tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="casual, weekend, autumn" />
+            <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Roll the sleeves, tuck the front…" />
           </div>
+          <div className="hidden grid-cols-2 gap-3 pt-2 md:grid">{actions('Save & view on me')}</div>
         </div>
       </div>
 
+      {/* on phones the save bar sticks above the tab bar while you build the outfit */}
+      <div className="sticky bottom-20 z-20 mt-6 rounded-card border border-line bg-white/90 p-2 shadow-lift backdrop-blur-xl md:hidden">
+        {sel.length > 0 && <div className="px-2 pb-2 text-[12px] text-muted">{pieces.length} piece{pieces.length === 1 ? '' : 's'} chosen</div>}
+        <div className="grid grid-cols-2 gap-2">{actions('View on me')}</div>
+      </div>
+      </div>
+
       {/* saved outfits */}
-      <section className="mt-24">
+      <section className="mt-16 md:mt-24">
         <SectionHeader label={`${outfits.length} saved`} title="Your outfits" />
         {outfits.length ? (
-          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-6 sm:gap-y-10 lg:grid-cols-3">
             {outfits.map((o) => {
               const look = looks.find((l) => l.id === o.tryon_id && l.status === 'done');
               const ps = o.item_ids.map((id) => itemById[id]).filter(Boolean);
@@ -153,20 +175,20 @@ function Studio() {
                 <div key={o.id} className="group animate-fade-up">
                   <div className="relative overflow-hidden rounded-card bg-canvas">
                     {look ? <Photo src={url(look.path)} className="aspect-[4/5] w-full" /> : (
-                      <div className="grid aspect-[4/5] grid-cols-2 gap-1 p-3">{ps.slice(0, 4).map((p) => <img key={p.id} src={url(p.path)} alt="" className="size-full object-contain" />)}</div>
+                      <div className="grid aspect-[4/5] grid-cols-2 gap-1 p-2 sm:p-3">{ps.slice(0, 4).map((p) => <img key={p.id} src={url(p.path)} alt="" className="size-full object-contain" />)}</div>
                     )}
-                    <button aria-label="Favourite" onClick={() => updateOutfit(o.id, { favourite: !o.favourite })} className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 shadow-soft backdrop-blur"><Heart className={cx('size-4', o.favourite && 'fill-ink')} strokeWidth={1.5} /></button>
+                    <button aria-label="Favourite" onClick={() => updateOutfit(o.id, { favourite: !o.favourite })} className="absolute right-2 top-2 grid size-9 place-items-center rounded-full bg-white/90 shadow-soft backdrop-blur sm:right-3 sm:top-3"><Heart className={cx('size-4', o.favourite && 'fill-ink')} strokeWidth={1.5} /></button>
                   </div>
-                  <div className="mt-4 flex items-start justify-between gap-3">
+                  <div className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[16px] tracking-[-0.01em]">{o.name}</div>
-                      <div className="mt-1 text-[13px] text-muted">{ps.length} piece{ps.length === 1 ? '' : 's'}{o.notes ? ` · ${o.notes}` : ''}</div>
+                      <div className="truncate text-[14px] tracking-[-0.01em] sm:text-[16px]">{o.name}</div>
+                      <div className="mt-1 truncate text-[12px] text-muted sm:text-[13px]">{ps.length} piece{ps.length === 1 ? '' : 's'}{o.notes ? ` · ${o.notes}` : ''}</div>
                       {!!o.tags?.length && <div className="mt-2 flex flex-wrap gap-1">{o.tags.map((t) => <span key={t} className="rounded-full bg-canvas px-2 py-0.5 text-[11px] text-ink-2">{t}</span>)}</div>}
                     </div>
-                    <div className="flex shrink-0">
+                    <div className="-ml-2 flex shrink-0 sm:ml-0">
                       <button aria-label="View on me" title="View on me" onClick={() => router.push(`/try-on?items=${o.item_ids.join(',')}`)} className="grid size-9 place-items-center rounded-full hover:bg-soft"><Sparkles className="size-4" strokeWidth={1.5} /></button>
                       <button aria-label="Edit" title="Edit" onClick={() => load(o)} className="grid size-9 place-items-center rounded-full hover:bg-soft"><Pencil className="size-4" strokeWidth={1.5} /></button>
-                      <button aria-label="Delete" title="Delete" onClick={async () => { if (confirm('Delete this outfit?')) { await deleteOutfit(o.id); if (editing?.id === o.id) reset(); } }} className="grid size-9 place-items-center rounded-full text-muted hover:bg-soft hover:text-danger"><Trash2 className="size-4" strokeWidth={1.5} /></button>
+                      <button aria-label="Delete" title="Delete" onClick={() => setRemoving(o)} className="grid size-9 place-items-center rounded-full text-muted hover:bg-soft hover:text-danger"><Trash2 className="size-4" strokeWidth={1.5} /></button>
                     </div>
                   </div>
                 </div>
@@ -177,10 +199,18 @@ function Studio() {
       </section>
 
       {/* stylist */}
-      <section className="mt-24 rounded-[28px] bg-canvas px-5 py-10 md:px-12 md:py-14">
+      <section className="-mx-5 mt-16 bg-canvas px-5 py-10 md:mx-0 md:mt-24 md:rounded-[28px] md:px-12 md:py-14">
         <SectionHeader label="AI personal stylist" title="Need a second opinion?" />
         <StylistPanel />
       </section>
+
+      <Confirm
+        open={Boolean(removing)}
+        onClose={() => setRemoving(null)}
+        title="Delete this outfit?"
+        text="The outfit is removed. Its pieces stay in your wardrobe and any looks stay in Saved Looks."
+        onConfirm={async () => { if (!removing) return; await deleteOutfit(removing.id); if (editing?.id === removing.id) reset(); toast('Outfit deleted'); }}
+      />
 
       <Sheet open={Boolean(slot)} onClose={() => setSlot(null)} label="Choose" title={slot?.label} wide>
         {slot && (pool[slot.id]?.length || (slot.id === 'top' && items.some((i) => groupOf(i.category) === 'one-piece'))) ? (
