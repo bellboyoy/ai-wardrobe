@@ -191,11 +191,19 @@ function useStoreState() {
     setLooks((list) => list.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     check(await sb.from('tryons').update(patch).eq('id', id));
   };
-  const deleteLook = async (l: Look) => {
-    check(await sb.from('tryons').delete().eq('id', l.id));
-    await removeFile(l.path);
-    await refresh();
+  /** Delete looks, their images in storage, and unlink any outfit that used one as its picture. */
+  const deleteLooks = async (list: Look[]) => {
+    const ids = list.map((l) => l.id);
+    if (!ids.length) return;
+    setLooks((all) => all.filter((l) => !ids.includes(l.id)));
+    try {
+      check(await sb.from('tryons').delete().in('id', ids));
+      check(await sb.from('outfits').update({ tryon_id: null }).in('tryon_id', ids));
+      const paths = list.map((l) => l.path).filter(Boolean) as string[];
+      if (paths.length) await sb.storage.from(BUCKET).remove(paths);
+    } finally { await refresh(); }
   };
+  const deleteLook = (l: Look) => deleteLooks([l]);
 
   // ---------- outfits ----------
   const addOutfit = async (o: Partial<Outfit>) => {
@@ -222,6 +230,6 @@ function useStoreState() {
   return {
     user, config, loaded, photos, items, looks, outfits, profile, avatar, itemById, url, refresh, api, signIn, signOut,
     removeFile, addPhoto, replacePhoto, updatePhoto, buildStudio, deletePhoto, uploadItemImage, importItemImage, addItem, updateItem, deleteItem, cleanItem, restoreOriginal, cleaning,
-    tryOn, updateLook, deleteLook, addOutfit, updateOutfit, deleteOutfit, saveProfile,
+    tryOn, updateLook, deleteLook, deleteLooks, addOutfit, updateOutfit, deleteOutfit, saveProfile,
   };
 }

@@ -146,6 +146,20 @@ export function Sheet({ open, onClose, title, label, children, wide }: { open: b
   );
 }
 
+/** A small in-app confirm step for actions that can't be undone. */
+export function Confirm({ open, title, text, confirmLabel = 'Delete', onConfirm, onClose }: { open: boolean; title: string; text?: ReactNode; confirmLabel?: string; onConfirm: () => Promise<void> | void; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Sheet open={open} onClose={() => !busy && onClose()} title={title}>
+      {text && <p className="text-[14px] leading-relaxed text-ink-2">{text}</p>}
+      <div className="mt-6 grid grid-cols-2 gap-2">
+        <Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button>
+        <Button variant="danger" loading={busy} onClick={async () => { setBusy(true); try { await onConfirm(); onClose(); } finally { setBusy(false); } }}>{confirmLabel}</Button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function EmptyState({ title, text, action, icon }: { title: string; text?: ReactNode; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex flex-col items-center rounded-card border border-dashed border-line bg-canvas/50 px-6 py-16 text-center">

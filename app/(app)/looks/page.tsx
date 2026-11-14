@@ -6,7 +6,7 @@ import { Columns2, Heart, RotateCcw, Trash2, Download, Bookmark, Images } from '
 import { useStore } from '@/lib/store';
 import { category } from '@/lib/categories';
 import type { Look } from '@/lib/types';
-import { Button, Chip, EmptyState, Label, PageHeader, Photo, Sheet, cx, useToast } from '@/components/ui';
+import { Button, Chip, Confirm, EmptyState, Label, PageHeader, Photo, Sheet, cx, useToast } from '@/components/ui';
 import { CompareSlider, LookCard } from '@/components/looks';
 
 export default function LooksPage() {
@@ -14,12 +14,13 @@ export default function LooksPage() {
 }
 
 function Looks() {
-  const { looks, url, itemById, photos, updateLook, deleteLook, addOutfit } = useStore();
+  const { looks, url, itemById, photos, updateLook, deleteLooks, addOutfit } = useStore();
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
   const [filter, setFilter] = useState<'all' | 'favourites'>('all');
-  const [picking, setPicking] = useState(false);
+  const [mode, setMode] = useState<null | 'compare' | 'delete'>(null);
+  const [toDelete, setToDelete] = useState<Look[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -29,7 +30,9 @@ function Looks() {
 
   const list = looks.filter((l) => l.status !== 'error' || Date.now() - new Date(l.created_at).getTime() < 864e5).filter((l) => filter === 'all' || l.favourite);
   const open = looks.find((l) => l.id === openId) || null;
-  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id].slice(-3)));
+  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : mode === 'compare' ? [...p, id].slice(-3) : [...p, id]));
+  const stopPicking = () => { setMode(null); setPicked([]); };
+  const askDelete = (ls: Look[]) => ls.length && setToDelete(ls);
   const pieces = (l: Look) => l.item_ids.map((id) => itemById[id]).filter(Boolean);
 
   return (
@@ -38,12 +41,22 @@ function Looks() {
         label={`${looks.filter((l) => l.status === 'done').length} looks`}
         title="Saved Looks"
         intro="Every look you've generated. Favourite the keepers, compare side by side, and recreate any of them."
-        action={looks.length > 1 && (picking ? (
+        action={looks.length > 0 && (mode ? (
           <>
-            <Button variant="ghost" onClick={() => { setPicking(false); setPicked([]); }}>Cancel</Button>
-            <Button disabled={picked.length < 2} icon={<Columns2 className="size-4" strokeWidth={1.5} />} onClick={() => setComparing(true)}>Compare {picked.length > 1 ? picked.length : ''}</Button>
+            <Button variant="ghost" onClick={stopPicking}>Cancel</Button>
+            {mode === 'compare'
+              ? <Button disabled={picked.length < 2} icon={<Columns2 className="size-4" strokeWidth={1.5} />} onClick={() => setComparing(true)}>Compare {picked.length > 1 ? picked.length : ''}</Button>
+              : <>
+                  <Button variant="secondary" onClick={() => setPicked(picked.length === list.length ? [] : list.map((l) => l.id))}>{picked.length === list.length ? 'Select none' : 'Select all'}</Button>
+                  <Button variant="danger" disabled={!picked.length} icon={<Trash2 className="size-4" strokeWidth={1.5} />} onClick={() => askDelete(looks.filter((l) => picked.includes(l.id)))}>Delete {picked.length || ''}</Button>
+                </>}
           </>
-        ) : <Button variant="secondary" icon={<Columns2 className="size-4" strokeWidth={1.5} />} onClick={() => setPicking(true)}>Compare looks</Button>)}
+        ) : (
+          <>
+            {looks.length > 1 && <Button variant="secondary" icon={<Columns2 className="size-4" strokeWidth={1.5} />} onClick={() => setMode('compare')}>Compare looks</Button>}
+            <Button variant="secondary" icon={<Trash2 className="size-4" strokeWidth={1.5} />} onClick={() => setMode('delete')}>Delete looks</Button>
+          </>
+        ))}
       />
 
       {looks.length === 0 ? (
@@ -54,10 +67,11 @@ function Looks() {
             <Chip active={filter === 'all'} onClick={() => setFilter('all')}>All looks</Chip>
             <Chip active={filter === 'favourites'} onClick={() => setFilter('favourites')}>Favourites</Chip>
           </div>
-          {picking && <p className="mb-6 text-[13px] text-muted">Choose two or three looks to compare.</p>}
+          {mode === 'compare' && <p className="mb-6 text-[13px] text-muted">Choose two or three looks to compare.</p>}
+          {mode === 'delete' && <p className="mb-6 text-[13px] text-muted">Tap the looks you want to delete.</p>}
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 md:grid-cols-3 md:gap-x-6 lg:grid-cols-4">
             {list.map((l) => (
-              <LookCard key={l.id} look={l} selected={picked.includes(l.id)} onSelect={picking && l.status === 'done' ? () => toggle(l.id) : undefined} onOpen={() => { setOpenId(l.id); setBeforeAfter(false); }} />
+              <LookCard key={l.id} look={l} selected={picked.includes(l.id)} onSelect={(mode === 'compare' && l.status === 'done') || (mode === 'delete' && l.status !== 'running') ? () => toggle(l.id) : undefined} onDelete={() => askDelete([l])} onOpen={() => { setOpenId(l.id); setBeforeAfter(false); }} />
             ))}
           </div>
         </>
@@ -88,12 +102,27 @@ function Looks() {
                 <Button variant="secondary" size="sm" icon={<RotateCcw className="size-4" strokeWidth={1.5} />} onClick={() => router.push(`/try-on?items=${open.item_ids.join(',')}${open.photo_id ? `&photo=${open.photo_id}` : ''}`)}>Recreate</Button>
                 <Button variant="secondary" size="sm" icon={<Bookmark className="size-4" strokeWidth={1.5} />} onClick={async () => { await addOutfit({ name: pieces(open).map((p) => p.name).filter(Boolean).slice(0, 2).join(' & ') || 'Saved look', item_ids: open.item_ids, tryon_id: open.id }); toast('Saved to your outfits'); }}>Save as outfit</Button>
                 {open.status === 'done' && <a href={url(open.path)} download target="_blank" rel="noreferrer"><Button variant="secondary" size="sm" className="w-full" icon={<Download className="size-4" strokeWidth={1.5} />}>Download</Button></a>}
-                <Button variant="danger" size="sm" icon={<Trash2 className="size-4" strokeWidth={1.5} />} onClick={async () => { if (confirm('Delete this look?')) { await deleteLook(open); setOpenId(null); } }}>Delete</Button>
+                <Button variant="danger" size="sm" icon={<Trash2 className="size-4" strokeWidth={1.5} />} onClick={() => askDelete([open])}>Delete</Button>
               </div>
             </div>
           </div>
         )}
       </Sheet>
+
+      <Confirm
+        open={toDelete.length > 0}
+        onClose={() => setToDelete([])}
+        title={toDelete.length > 1 ? `Delete ${toDelete.length} looks?` : 'Delete this look?'}
+        text={`${toDelete.length > 1 ? 'These images are' : 'The image is'} removed for good. Your clothes, photos and saved outfits stay.`}
+        confirmLabel={toDelete.length > 1 ? `Delete ${toDelete.length}` : 'Delete'}
+        onConfirm={async () => {
+          const n = toDelete.length;
+          await deleteLooks(toDelete);
+          if (toDelete.some((l) => l.id === openId)) setOpenId(null);
+          stopPicking();
+          toast(n > 1 ? `${n} looks deleted` : 'Look deleted');
+        }}
+      />
 
       {/* compare */}
       <Sheet open={comparing} onClose={() => setComparing(false)} label="Side by side" title="Compare looks" wide>
