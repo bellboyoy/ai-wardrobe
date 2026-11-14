@@ -104,7 +104,7 @@ export function AddItemSheet({ open, onClose, initialLink }: { open: boolean; on
     try {
       const path = image.path || (await importItemImage(image.remote!));
       const row = await addItem({ ...draft, path });
-      if (config.stylist) cleanItem(row.id).then(() => toast('Clean photo ready')).catch((e) => toast(`Couldn't make a clean photo: ${(e as Error).message}`, 'error'));
+      if (config.stylist) cleanItem(row.id).then(() => toast('Clean photo ready')).catch((e) => toast((e as Error).message, 'error'));
       toast('Added to your wardrobe');
       reset(); onClose();
     } catch (e) {

@@ -5,12 +5,15 @@ const BASE = env('GEMINI_BASE_URL') || 'https://generativelanguage.googleapis.co
 export type Part = { text: string } | { inline_data: { mime_type: string; data: string } };
 export const imgPart = (i: Img): Part => ({ inline_data: { mime_type: i.mime, data: i.base64 } });
 
-export async function gemini(model: string, parts: Part[], opts: { image?: boolean; json?: boolean } = {}) {
+export async function gemini(model: string, parts: Part[], opts: { image?: boolean; json?: boolean; temperature?: number } = {}) {
   const key = apiKey('GEMINI_API_KEY');
   if (!key) throw new Error('The AI isn\'t connected yet: add GEMINI_API_KEY in Vercel');
   const body: Record<string, unknown> = { contents: [{ role: 'user', parts }] };
-  if (opts.image) body.generationConfig = { responseModalities: ['TEXT', 'IMAGE'] };
-  if (opts.json) body.generationConfig = { responseMimeType: 'application/json' };
+  const config: Record<string, unknown> = {};
+  if (opts.image) config.responseModalities = ['TEXT', 'IMAGE'];
+  if (opts.json) config.responseMimeType = 'application/json';
+  if (opts.temperature !== undefined) config.temperature = opts.temperature;
+  if (Object.keys(config).length) body.generationConfig = config;
   const res = await fetch(`${BASE}/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
