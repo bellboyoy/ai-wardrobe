@@ -1,13 +1,15 @@
 import { requireUser, route, downloadImage, uploadImage, HttpError } from '@/lib/server/auth';
 import { runTryOn } from '@/lib/server/tryon';
-import { providerName, setupHint } from '@/lib/server/env';
+import { engines, providerName, setupHint, type Engine } from '@/lib/server/env';
 import type { Item, Photo } from '@/lib/types';
 
 export const maxDuration = 300;
 
-export const POST = route<{ photoId?: string; itemIds?: string[]; outfitId?: string }>(async (req, body) => {
+export const POST = route<{ photoId?: string; itemIds?: string[]; outfitId?: string; engine?: Engine }>(async (req, body) => {
   const { sb, user } = await requireUser(req);
   if (providerName() === 'none') throw new HttpError(400, `No try-on AI is connected yet. ${setupHint()}`);
+  if (body.engine && !engines().includes(body.engine)) throw new HttpError(400, `${body.engine === 'gemini' ? 'Gemini' : body.engine} isn't set up: add its API key in Vercel.`);
+  const engine = body.engine || providerName();
   const { data: photos } = await sb.from('photos').select('*').order('created_at', { ascending: false });
   const all = (photos || []) as Photo[];
   const photo = all.find((p) => p.id === body.photoId) || all.find((p) => p.is_default) || all[0];
@@ -17,7 +19,7 @@ export const POST = route<{ photoId?: string; itemIds?: string[]; outfitId?: str
   if (!items?.length) throw new HttpError(400, 'Choose at least one piece of clothing');
 
   const { data: row, error } = await sb.from('tryons').insert({
-    photo_id: photo.id, item_ids: (items as Item[]).map((i) => i.id), outfit_id: body.outfitId || null, provider: providerName(), status: 'running',
+    photo_id: photo.id, item_ids: (items as Item[]).map((i) => i.id), outfit_id: body.outfitId || null, provider: engine, status: 'running',
   }).select().single();
   if (error) throw new Error(error.message);
 
@@ -28,7 +30,7 @@ export const POST = route<{ photoId?: string; itemIds?: string[]; outfitId?: str
       Promise.all(refs.map((p) => downloadImage(sb, p.path))),
       Promise.all((items as Item[]).map(async (it) => ({ name: it.name, category: it.category, colour: it.colour, img: await downloadImage(sb, it.path) }))),
     ]);
-    const out = await runTryOn(person, references, garments);
+    const out = await runTryOn(person, references, garments, engine as Engine);
     const path = await uploadImage(sb, user, 'looks', out.buffer, out.mime);
     const { data: done } = await sb.from('tryons').update({ status: 'done', path }).eq('id', row.id).select().single();
     if (row.outfit_id) await sb.from('outfits').update({ tryon_id: row.id }).eq('id', row.outfit_id);

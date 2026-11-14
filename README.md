@@ -33,7 +33,8 @@ If no AI key is set, the app says so clearly and never shows a fake result.
 | `ALLOWED_EMAILS` | Recommended | Comma-separated emails allowed to use the AI routes. |
 | `TRYON_PROVIDER` | Optional | `gemini` (default when a Gemini key exists), `fashn` or `replicate`. |
 | `GEMINI_IMAGE_MODEL` / `GEMINI_TEXT_MODEL` | Optional | Override the Gemini models. |
-| `FASHN_API_KEY` / `REPLICATE_API_TOKEN` | Optional | Only for those try-on providers. |
+| `FASHN_API_KEY` / `REPLICATE_API_TOKEN` | Optional | Only for those try-on providers. When more than one try-on key is set, Try On shows an engine switch. |
+| `FASHN_MODEL` / `FASHN_QUALITY` | Optional | FASHN model (default `tryon-max`, or `tryon-v1.6`) and quality (`fast`, `balanced`, default `quality`). |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | Override the Supabase project. The public URL and anon key are already built in. |
 
 The old `SUPABASE_URL` and `SUPABASE_ANON_KEY` variables are no longer used and can be deleted.

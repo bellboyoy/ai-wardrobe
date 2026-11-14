@@ -166,7 +166,7 @@ function useStoreState() {
   };
 
   // ---------- looks (try-on results) ----------
-  const tryOn = async (args: { photoId?: string; itemIds: string[]; outfitId?: string }) => {
+  const tryOn = async (args: { photoId?: string; itemIds: string[]; outfitId?: string; engine?: string }) => {
     const req = api<Look>('tryon', args);
     setTimeout(() => refresh().catch(() => {}), 1200);
     try { return await req; } finally { await refresh(); }

@@ -11,6 +11,8 @@ import { Button, EmptyState, Input, Label, PageHeader, Photo, Sheet, cx, useToas
 import { ItemPicker, AddItemSheet } from '@/components/wardrobe';
 import { CompareSlider, GeneratingFrame } from '@/components/looks';
 
+const ENGINE_LABEL: Record<string, string> = { fashn: 'FASHN', gemini: 'Gemini', replicate: 'Replicate' };
+
 export default function TryOnPage() {
   return <Suspense><TryOn /></Suspense>;
 }
@@ -34,12 +36,16 @@ function TryOn() {
   const live = result ? looks.find((l) => l.id === result.id) || result : null;
   const pieces = useMemo(() => selected.map((id) => itemById[id]).filter(Boolean), [selected, itemById]);
 
+  const choices = config.engines || [];
+  const [engine, setEngine] = useState(() => { try { return localStorage.getItem('tryon-engine') || ''; } catch { return ''; } });
+  useEffect(() => { if (choices.length && !choices.includes(engine)) setEngine(choices.includes(config.provider) ? config.provider : choices[0]); }, [choices, engine, config.provider]);
+  const pickEngine = (e: string) => { setEngine(e); setResult(null); try { localStorage.setItem('tryon-engine', e); } catch {} };
   const toggle = (id: string) => { setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id].slice(-6))); setResult(null); setCompare(false); };
 
   const generate = async () => {
     setBusy(true); setError(''); setResult(null); setCompare(false);
     try {
-      const look = await tryOn({ photoId: photo?.id, itemIds: selected });
+      const look = await tryOn({ photoId: photo?.id, itemIds: selected, engine });
       setResult(look);
     } catch (e) {
       setError((e as Error).message);
@@ -101,6 +107,7 @@ function TryOn() {
               ))}
               <Link href="/profile#avatar" className="grid w-20 shrink-0 place-items-center rounded-xl border border-dashed border-line text-muted hover:text-ink" aria-label="Manage photos"><Plus className="size-5" strokeWidth={1.5} /></Link>
             </div>
+            <p className="mt-3 text-[13px] leading-relaxed text-muted">Best results come from a full-length photo someone else takes, hands by your sides, in a fitted T-shirt. <Link href="/profile#avatar" className="text-ink underline-offset-4 hover:underline">Photo tips</Link></p>
           </section>
 
           <section>
@@ -123,6 +130,18 @@ function TryOn() {
           </section>
 
           <div className="sticky bottom-20 z-20 rounded-card border border-line bg-white/90 p-4 shadow-lift backdrop-blur-xl md:bottom-6">
+            {config.aiReady && choices.length > 1 && (
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="label-xs">Engine</span>
+                <div className="grid grid-cols-2 rounded-full bg-canvas p-1 text-[13px]">
+                  {choices.slice(0, 2).map((e) => (
+                    <button key={e} onClick={() => pickEngine(e)} className={cx('h-8 rounded-full px-4 transition-all duration-300', engine === e ? 'bg-white text-ink shadow-soft' : 'text-muted hover:text-ink')}>
+                      {ENGINE_LABEL[e] || e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {config.aiReady ? (
               <Button size="lg" className="w-full" disabled={!selected.length || !photo} loading={busy} icon={<Sparkles className="size-4" strokeWidth={1.5} />} onClick={generate}>
                 {busy ? 'Creating your look…' : selected.length > 1 ? `Generate outfit · ${selected.length} pieces` : 'Generate look'}

@@ -20,7 +20,7 @@ export async function gemini(model: string, parts: Part[], opts: { image?: boole
   if (!res.ok) {
     const msg = json.error?.message || String(res.status);
     if (/API key/i.test(msg)) throw new Error(`Gemini rejected the API key (it starts "${key.slice(0, 4)}…", ${key.length} characters). Copy a fresh key from aistudio.google.com/apikey into GEMINI_API_KEY in Vercel, then redeploy.`);
-    if (/quota/i.test(msg) && /free_tier/i.test(msg) && /limit: 0\b/.test(msg)) throw new Error(`Google's free tier doesn't include ${model}. Turn on billing for your key at aistudio.google.com (pay per image), or set TRYON_PROVIDER to fashn with a FASHN_API_KEY.`);
+    if (/quota/i.test(msg) && /free_tier/i.test(msg) && /limit: 0\b/.test(msg)) throw new Error(`Google's free tier doesn't include ${model}. To use Gemini for try-on, turn on billing for your key at aistudio.google.com (pay per image). Until then, switch the engine to FASHN.`);
     if (/quota/i.test(msg)) {
       const wait = msg.match(/retry in (\d+h)?(\d+m)?(\d+)/i);
       const when = wait ? [wait[1], wait[2]].filter(Boolean).join(' ') || `${wait[3]}s` : '';
