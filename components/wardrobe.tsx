@@ -9,7 +9,7 @@ import type { Item } from '@/lib/types';
 import { Button, Chip, Input, Label, Photo, Select, Sheet, Textarea, cx, useToast } from './ui';
 
 export function ItemCard({ item, onOpen, selected, onSelect, compact }: { item: Item; onOpen?: () => void; selected?: boolean; onSelect?: () => void; compact?: boolean }) {
-  const { url, updateItem } = useStore();
+  const { url, updateItem, cleaning } = useStore();
   return (
     <div className="group animate-fade-up">
       <div className={cx('relative overflow-hidden rounded-card transition-all duration-500 ease-[var(--ease-out-soft)]', selected ? 'ring-2 ring-ink ring-offset-2' : 'hover:shadow-lift')}>
@@ -27,6 +27,7 @@ export function ItemCard({ item, onOpen, selected, onSelect, compact }: { item: 
           </button>
         )}
         {onSelect && selected && <span className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-ink text-white"><Check className="size-4" strokeWidth={2} /></span>}
+        {cleaning.includes(item.id) && <span className="absolute inset-x-3 bottom-3 flex items-center justify-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-[11px] text-ink shadow-soft backdrop-blur"><Sparkles className="size-3.5 animate-pulse" strokeWidth={1.5} /> Cleaning photo…</span>}
         {item.status === 'wishlist' && <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-ink-2 backdrop-blur">Wishlist</span>}
       </div>
       {!compact && (
@@ -44,7 +45,7 @@ type Draft = { name: string; category: string; colour: string; brand: string; si
 const blank: Draft = { name: '', category: 'tshirt', colour: '', brand: '', size: '', price: '', source: '', url: '', status: 'wishlist', notes: '' };
 
 export function AddItemSheet({ open, onClose, initialLink }: { open: boolean; onClose: () => void; initialLink?: string }) {
-  const { api, config, url, uploadItemImage, importItemImage, addItem, removeFile } = useStore();
+  const { api, config, url, uploadItemImage, importItemImage, addItem, removeFile, cleanItem } = useStore();
   const toast = useToast();
   const [mode, setMode] = useState<'link' | 'photo'>('link');
   const [link, setLink] = useState('');
@@ -102,7 +103,8 @@ export function AddItemSheet({ open, onClose, initialLink }: { open: boolean; on
     setBusy('save'); setError('');
     try {
       const path = image.path || (await importItemImage(image.remote!));
-      await addItem({ ...draft, path });
+      const row = await addItem({ ...draft, path });
+      if (config.stylist) cleanItem(row.id).then(() => toast('Clean photo ready')).catch((e) => toast(`Couldn't make a clean photo: ${(e as Error).message}`, 'error'));
       toast('Added to your wardrobe');
       reset(); onClose();
     } catch (e) {
@@ -193,11 +195,12 @@ export function AddItemSheet({ open, onClose, initialLink }: { open: boolean; on
 }
 
 export function ItemDetailSheet({ item, onClose }: { item: Item | null; onClose: () => void }) {
-  const { url, updateItem, deleteItem, looks } = useStore();
+  const { url, updateItem, deleteItem, looks, config, cleanItem, restoreOriginal, cleaning } = useStore();
+  const [showOriginal, setShowOriginal] = useState(false);
   const toast = useToast();
   const router = useRouter();
   const [d, setD] = useState<Item | null>(item);
-  useEffect(() => setD(item), [item]);
+  useEffect(() => setD((prev) => (prev && item && prev.id === item.id ? { ...prev, path: item.path, original_path: item.original_path } : item)), [item]);
   if (!item || !d) return null;
   const set = (k: keyof Item) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setD({ ...d, [k]: e.target.value });
   const dirty = JSON.stringify(d) !== JSON.stringify(item);
@@ -207,7 +210,25 @@ export function ItemDetailSheet({ item, onClose }: { item: Item | null; onClose:
     <Sheet open onClose={onClose} label={category(item.category).one} title={item.name || 'Untitled piece'} wide>
       <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
-          <Photo src={url(item.path)} fit="contain" className="aspect-[4/5] w-full rounded-card" />
+          <div className="relative">
+            <Photo src={url(showOriginal && item.original_path ? item.original_path : item.path)} fit="contain" className="aspect-[4/5] w-full rounded-card" />
+            {cleaning.includes(item.id) && <div className="absolute inset-0 grid place-items-center rounded-card bg-white/70 text-[13px]"><span className="flex items-center gap-2"><Sparkles className="size-4 animate-pulse" strokeWidth={1.5} /> Making a clean photo…</span></div>}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            {item.original_path ? (
+              <div className="grid grid-cols-2 rounded-full bg-canvas p-1 text-[13px]">
+                {[false, true].map((o) => (
+                  <button key={String(o)} onClick={() => setShowOriginal(o)} className={cx('h-8 rounded-full px-4 transition-all duration-300', showOriginal === o ? 'bg-white text-ink shadow-soft' : 'text-muted hover:text-ink')}>{o ? 'Original' : 'Clean'}</button>
+                ))}
+              </div>
+            ) : <span className="text-[13px] text-muted">Original photo</span>}
+            {config.stylist && (
+              <div className="flex gap-1">
+                <Button size="sm" variant="quiet" disabled={cleaning.includes(item.id)} onClick={() => { setShowOriginal(false); cleanItem(item.id).then(() => toast('Clean photo ready')).catch((e) => toast((e as Error).message, 'error')); }}>{item.original_path ? 'Redo clean photo' : 'Make clean photo'}</Button>
+                {item.original_path && <Button size="sm" variant="quiet" onClick={() => restoreOriginal(item).then(() => { setShowOriginal(false); toast('Using the original photo'); })}>Use original</Button>}
+              </div>
+            )}
+          </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button size="sm" icon={<Sparkles className="size-4" strokeWidth={1.5} />} onClick={() => router.push(`/try-on?items=${item.id}`)}>Try it on</Button>
             <Button size="sm" variant="secondary" icon={<Heart className={cx('size-4', d.favourite && 'fill-ink')} strokeWidth={1.5} />} onClick={() => { updateItem(item.id, { favourite: !d.favourite }); setD({ ...d, favourite: !d.favourite }); }}>

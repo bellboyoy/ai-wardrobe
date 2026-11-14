@@ -1,7 +1,7 @@
 export type Photo = { id: string; path: string; angle: 'front' | 'side' | 'full' | 'other' | 'studio'; is_default: boolean; created_at: string };
 export type Item = {
   id: string; path: string; name: string; category: string; colour: string; brand: string; size: string;
-  price: string; source: string; url: string; notes: string; status: 'owned' | 'wishlist'; favourite: boolean; created_at: string;
+  price: string; source: string; url: string; notes: string; status: 'owned' | 'wishlist'; favourite: boolean; created_at: string; original_path?: string | null;
 };
 export type Look = {
   id: string; photo_id: string | null; item_ids: string[]; outfit_id: string | null; provider: string;
